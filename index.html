@@ -189,6 +189,13 @@ async function sbLoadStatuses(year,mi){
   (data||[]).forEach(r=>{out[`${r.year}-${r.month}-${r.task_id}`]=r;});
   return out;
 }
+async function sbLoadAllStatuses(year){
+  const {data,error}=await db.from('mt_statuses').select('*').eq('year',year);
+  if(error){console.error(error);return{};}
+  const out={};
+  (data||[]).forEach(r=>{out[`${r.year}-${r.month}-${r.task_id}`]=r;});
+  return out;
+}
 async function sbPatchStatus(year,mi,taskId,patch){
   const {data:ex}=await db.from('mt_statuses').select('id').eq('year',year).eq('month',mi).eq('task_id',taskId).maybeSingle();
   const payload={year,month:mi,task_id:taskId,updated_at:new Date().toISOString(),...patch};
@@ -236,7 +243,7 @@ function App(){
           else { setCatsRaw(DEFAULT_CATS); await sbSave('cats',DEFAULT_CATS); }
           setHolRaw(cfg.holidays||{});
         }
-        const sts=await sbLoadStatuses(today.getFullYear(),today.getMonth());
+        const sts=await sbLoadAllStatuses(today.getFullYear());
         setStatuses(sts);
         setSyncLabel('Live');
       }catch(e){
@@ -253,18 +260,19 @@ function App(){
     if(!ready)return;
     (async()=>{
       setSyncing(true);setSyncLabel('Loading...');
-      const sts=await sbLoadStatuses(year,mi);
+      // Load full year so all 12 months show correct progress in dashboard
+      const sts=await sbLoadAllStatuses(year);
       setStatuses(sts);
       setSyncing(false);setSyncLabel('Live');
     })();
-  },[year,mi,ready]);
+  },[year,ready]);
 
   // ── Realtime subscriptions ──────────────────────────────────────────────────
   useEffect(()=>{
     if(!ready)return;
     const ch1=db.channel('st').on('postgres_changes',{event:'*',schema:'public',table:'mt_statuses'},(p)=>{
       const r=p.new||p.old;
-      if(!r||r.year!==year||r.month!==mi)return;
+      if(!r||r.year!==year)return;  // accept all months for this year
       const k=`${r.year}-${r.month}-${r.task_id}`;
       if(p.eventType==='DELETE') setStatuses(prev=>{const n={...prev};delete n[k];return n;});
       else setStatuses(prev=>({...prev,[k]:r}));
