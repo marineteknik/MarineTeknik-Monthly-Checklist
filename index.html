@@ -151,6 +151,18 @@ const DEFAULT_TASKS = [
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const ord  = n => (!n&&n!==0)?"—":n+(n===1?"st":n===2?"nd":n===3?"rd":"th");
+
+// A task is "complete" if DONE or N/A (both owner AND reviewer)
+const isComplete = st => (st.ownerStatus==="DONE"||st.ownerStatus==="N/A") && (st.reviewerStatus==="DONE"||st.reviewerStatus==="N/A"||!st.reviewerStatus);
+
+// A task is "late" if it has a completion date that is after the effective deadline day
+// OR if today is past the deadline and it is still not complete
+function isLate(st, effDay, dlYear, dlMi){
+  if(!st.completionDate) return false;
+  const completed = new Date(st.completionDate + 'T12:00:00');
+  const deadline  = new Date(dlYear, dlMi, effDay);
+  return completed > deadline;
+}
 const cc   = (cat,cats) => (cats||[]).find(c=>c.name===cat)?.color||"#374151";
 const ini  = (nm,team)  => (team||[]).find(t=>t.name===nm)?.initials||(nm||"?").split(" ").map(x=>x[0]).join("").slice(0,3).toUpperCase();
 const tcol = (nm,team)  => (team||[]).find(t=>t.name===nm)?.color||"#64748b";
@@ -371,12 +383,13 @@ function App(){
   // ── Derived ───────────────────────────────────────────────────────────────────
   const catNames=[...new Set([...cats.map(c=>c.name),...tasks.map(t=>t.category)])];
   const filtered=tasks.filter(t=>(fCat==="All"||t.category===fCat)&&(fOwner==="All"||t.owner===fOwner));
-  const done=filtered.filter(t=>getSt(t.id).ownerStatus==="DONE").length;
-  const pend=filtered.filter(t=>getSt(t.id).ownerStatus==="PENDING").length;
-  const notS=filtered.filter(t=>!getSt(t.id).ownerStatus).length;
-  const naC =filtered.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
-  const pct =(filtered.length-naC)>0?Math.round(done/(filtered.length-naC)*100):0;
-  const overdue=isCur?tasks.filter(t=>{const s=getSt(t.id);return s.ownerStatus!=="DONE"&&s.ownerStatus!=="N/A"&&today.getDate()>effD(t);}):[];
+  const done   =filtered.filter(t=>{ const s=getSt(t.id); return isComplete(s); }).length;
+  const lateCount=filtered.filter(t=>{ const s=getSt(t.id); const ef=effD(t); return isLate(s,ef,dlYear,dlMi); }).length;
+  const pend   =filtered.filter(t=>getSt(t.id).ownerStatus==="PENDING").length;
+  const notS   =filtered.filter(t=>!getSt(t.id).ownerStatus).length;
+  const naC    =filtered.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
+  const pct    =filtered.length>0?Math.round(done/filtered.length*100):0;
+  const overdue=isCur?tasks.filter(t=>{const s=getSt(t.id);const ef=effD(t);return !isComplete(s)&&today.getDate()>ef;}):[];
   const mHols=((holidays||{})[`${dlYear}-${dlMi}`])||[];
 
   if(!ready) return(
@@ -425,7 +438,7 @@ function App(){
 
       {/* STATS BAR */}
       <div style={S.statsBar}>
-        {[{n:done,l:"Done",c:"#10b981"},{n:pend,l:"Pending",c:"#f59e0b"},{n:notS,l:"Not Started",c:"#94a3b8"},{n:naC,l:"N/A",c:"#cbd5e1"}].map(x=>(
+        {[{n:done,l:"Complete",c:"#10b981"},{n:lateCount,l:"Late",c:"#dc2626"},{n:pend,l:"Pending",c:"#f59e0b"},{n:notS,l:"Not Started",c:"#94a3b8"}].map(x=>(
           <div key={x.l} style={{textAlign:"center",minWidth:52}}>
             <div style={{fontSize:22,fontWeight:800,color:x.c,lineHeight:1.1}}>{x.n}</div>
             <div style={{fontSize:10,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px"}}>{x.l}</div>
@@ -509,22 +522,26 @@ function ChecklistView({tasks,getSt,patch,effD,team,cats,dlYear,dlMi,isCur,today
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       {[...new Set(orderedCats)].filter(cat=>grouped[cat]?.length>0).map(cat=>{
         const ct=grouped[cat];
-        const cdone=ct.filter(t=>getSt(t.id).ownerStatus==="DONE").length;
+        const cdone=ct.filter(t=>isComplete(getSt(t.id))).length;
         const cna  =ct.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
+        const clate=ct.filter(t=>{ const s=getSt(t.id);const ef=effD(t);return isLate(s,ef,dlYear,dlMi); }).length;
         return(
           <div key={cat} style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 18px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
               <span style={{width:10,height:10,borderRadius:"50%",background:cc(cat,cats),flexShrink:0,display:"inline-block"}}/>
               <span style={{fontWeight:700,fontSize:13,color:"#1e293b",flex:1}}>{cat}</span>
-              <span style={{fontSize:12,color:"#64748b",fontWeight:600}}>{cdone}/{ct.length-cna} complete</span>
+              <span style={{fontSize:12,color:"#64748b",fontWeight:600}}>{cdone}/{ct.length} complete</span>
+              {clate>0&&<span style={{fontSize:11,fontWeight:700,color:"#ea580c",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:4,padding:"1px 6px",marginLeft:4}}>⚠ {clate} late</span>}
             </div>
             {ct.map(task=>{
               const st=getSt(task.id);
               const eff=effD(task);
-              const isDone=st.ownerStatus==="DONE";
-              const isPend=st.ownerStatus==="PENDING";
-              const isOver=isCur&&!isDone&&st.ownerStatus!=="N/A"&&todayD>eff;
-              const rowBg=isDone?"#f0fdf4":isPend?"#fffbeb":isOver?"#fef2f2":"#fff";
+              const isDone  =isComplete(st);
+              const isNA    =st.ownerStatus==="N/A";
+              const isPend  =st.ownerStatus==="PENDING";
+              const isOver  =isCur&&!isDone&&todayD>eff;
+              const wasLate =isLate(st,eff,dlYear,dlMi);
+              const rowBg   =isDone&&wasLate?"#fff7ed":isDone?"#f0fdf4":isPend?"#fffbeb":isOver?"#fef2f2":"#fff";
               const effDate=new Date(dlYear,dlMi,eff);
               const dow=DOWS[effDate.getDay()];
               const moved=eff!==task.deadlineDay;
@@ -532,12 +549,15 @@ function ChecklistView({tasks,getSt,patch,effD,team,cats,dlYear,dlMi,isCur,today
               return(
                 <React.Fragment key={task.id}>
                 <div className="trow" style={{display:"flex",alignItems:"center",padding:"10px 18px",borderBottom:"1px solid #f1f5f9",gap:12,background:rowBg}}>
-                  <div style={{width:22,height:22,borderRadius:6,border:isDone?"none":"2px solid #cbd5e1",background:isDone?"#10b981":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}
-                    onClick={()=>{if(isDone)patch(task.id,{ownerStatus:"",reviewerStatus:""});else patch(task.id,{ownerStatus:"DONE",reviewerStatus:"DONE",completionDate:new Date().toISOString().split("T")[0]});}}>
-                    {isDone&&"✓"}
+                  <div style={{width:22,height:22,borderRadius:6,border:isDone?"none":"2px solid #cbd5e1",background:isDone?(wasLate?"#f97316":"#10b981"):"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}
+                    onClick={()=>{if(isDone)patch(task.id,{ownerStatus:"",reviewerStatus:""});else patch(task.id,{ownerStatus:"DONE",reviewerStatus:"DONE",completionDate:new Date().toISOString().split("T")[0]});}}> 
+                    {isDone&&(wasLate?"!":"✓")}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:500,color:isDone?"#94a3b8":"#1e293b",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{task.name}</div>
+                    <div style={{fontSize:14,fontWeight:500,color:isDone?(wasLate?"#c2410c":"#94a3b8"):"#1e293b",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                      {task.name}
+                      {wasLate&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#ea580c",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:4,padding:"1px 5px",textDecoration:"none",display:"inline-block"}}>LATE</span>}
+                    </div>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginTop:3,flexWrap:"wrap"}}>
                       <span style={{padding:"2px 7px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:tcol(task.owner,team),flexShrink:0}}>{ini(task.owner,team)}</span>
                       {st.notes&&<span title={st.notes} style={{fontSize:11,cursor:"help"}}>📝</span>}
@@ -635,7 +655,7 @@ function CommentRow({task,st,patch}){
 }
 
 function MiniDrop({label,value,onChange}){
-  const cm={DONE:{background:"#dcfce7",color:"#166534",border:"1px solid #86efac"},PENDING:{background:"#fef9c3",color:"#854d0e",border:"1px solid #fde047"},"N/A":{background:"#f1f5f9",color:"#64748b",border:"1px solid #cbd5e1"}};
+  const cm={DONE:{background:"#dcfce7",color:"#166534",border:"1px solid #86efac"},PENDING:{background:"#fef9c3",color:"#854d0e",border:"1px solid #fde047"},"N/A":{background:"#e0f2fe",color:"#0369a1",border:"1px solid #7dd3fc"}};
   return(
     <div style={{display:"flex",flexDirection:"column",gap:2}}>
       <span style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}</span>
@@ -654,22 +674,34 @@ function DashboardView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,
   const catNames=[...new Set(tasks.map(t=>t.category))];
   const mStats=MONTHS.map((m,i)=>{
     const tot=tasks.length;
-    const dn=tasks.filter(t=>statuses[`${year}-${i}-${t.id}`]?.owner_status==="DONE").length;
-    const na=tasks.filter(t=>statuses[`${year}-${i}-${t.id}`]?.owner_status==="N/A").length;
-    return{month:m.slice(0,3),done:dn,total:tot-na,pct:tot-na>0?Math.round(dn/(tot-na)*100):0};
+    const dlMiI = i===11 ? 0 : i+1;
+    const dlYrI = i===11 ? year+1 : year;
+    const dn=tasks.filter(t=>{
+      const s=statuses[`${year}-${i}-${t.id}`]||{};
+      return s.owner_status==="DONE"||s.owner_status==="N/A";
+    }).length;
+    const late=tasks.filter(t=>{
+      const s=statuses[`${year}-${i}-${t.id}`]||{};
+      if(!s.completion_date) return false;
+      const eff=calcEffDay(t.deadlineDay,s.adjusted_deadline??null,dlYrI,dlMiI,holidays);
+      const completed=new Date(s.completion_date+'T12:00:00');
+      const deadline=new Date(dlYrI,dlMiI,eff);
+      return completed>deadline;
+    }).length;
+    return{month:m.slice(0,3),done:dn,total:tot,pct:tot>0?Math.round(dn/tot*100):0,late};
   });
   const cStats=catNames.map(cat=>{
     const ct=tasks.filter(t=>t.category===cat);
-    const dn=ct.filter(t=>getSt(t.id).ownerStatus==="DONE").length;
-    const na=ct.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
-    const tot=ct.length-na;
+    const dn=ct.filter(t=>isComplete(getSt(t.id))).length;
+    const tot=ct.length;
     return{cat,done:dn,total:tot,pct:tot>0?Math.round(dn/tot*100):0};
   });
   const oStats=team.map(m=>{
     const mt=tasks.filter(t=>t.owner===m.name);if(!mt.length)return null;
-    const dn=mt.filter(t=>getSt(t.id).ownerStatus==="DONE").length;
-    const ov=isCur?mt.filter(t=>{const s=getSt(t.id);return s.ownerStatus!=="DONE"&&s.ownerStatus!=="N/A"&&today.getDate()>effD(t);}).length:0;
-    return{...m,total:mt.length,done:dn,overdue:ov,pct:Math.round(dn/mt.length*100)};
+    const dn=mt.filter(t=>isComplete(getSt(t.id))).length;
+    const ov=isCur?mt.filter(t=>{const s=getSt(t.id);return !isComplete(s)&&today.getDate()>effD(t);}).length:0;
+    const lt=mt.filter(t=>{ const s=getSt(t.id);const ef=effD(t);return isLate(s,ef,dlYear,dlMi); }).length;
+    return{...m,total:mt.length,done:dn,overdue:ov,late:lt,pct:Math.round(dn/mt.length*100)};
   }).filter(Boolean);
   if(!tasks.length) return <div style={{textAlign:"center",padding:"60px 20px",color:"#94a3b8",fontSize:15}}>No tasks yet.</div>;
   return(
@@ -689,10 +721,11 @@ function DashboardView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,
                   <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase"}}>{m.month}</div>
                   <svg viewBox="0 0 36 36" style={{width:52,height:52}}>
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="3.2"/>
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke={m.pct===100?"#10b981":m.pct>0?"#3b82f6":"#e2e8f0"} strokeWidth="3.2" strokeDasharray={`${m.pct} ${100-m.pct}`} strokeDashoffset="25" transform="rotate(-90 18 18)"/>
-                    <text x="18" y="20.5" textAnchor="middle" fontSize="7" fill={m.pct===100?"#10b981":"#1e293b"} fontWeight="700">{m.pct}%</text>
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke={m.pct===100?(m.late>0?"#f97316":"#10b981"):m.pct>0?"#3b82f6":"#e2e8f0"} strokeWidth="3.2" strokeDasharray={`${m.pct} ${100-m.pct}`} strokeDashoffset="25" transform="rotate(-90 18 18)"/>
+                    <text x="18" y="20.5" textAnchor="middle" fontSize="7" fill={m.pct===100?(m.late>0?"#ea580c":"#10b981"):"#1e293b"} fontWeight="700">{m.pct}%</text>
                   </svg>
                   <div style={{fontSize:10,color:"#94a3b8"}}>{m.done}/{m.total}</div>
+                  {m.late>0&&<div style={{fontSize:9,color:"#ea580c",fontWeight:700}}>⚠ {m.late} late</div>}
                 </div>
               ))}
             </div>
@@ -720,6 +753,7 @@ function DashboardView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,
                     <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:3}}>
                       {m.name.split(" ").slice(0,2).join(" ")}
                       {m.overdue>0&&<span style={{marginLeft:8,fontSize:11,color:"#dc2626",fontWeight:700}}>⚠ {m.overdue} overdue</span>}
+                      {m.late>0&&<span style={{marginLeft:6,fontSize:11,color:"#ea580c",fontWeight:700}}>🕐 {m.late} late</span>}
                     </div>
                     <div style={{height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
                       <div style={{height:"100%",borderRadius:3,background:m.pct===100?"#10b981":m.color,width:`${m.pct}%`}}/>
@@ -730,6 +764,8 @@ function DashboardView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,
               ))}
             </div>
           </div>
+          {/* Late tasks this month */}
+          <LateSummary tasks={tasks} statuses={statuses} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} holidays={holidays} team={team} cats={cats}/>
         </>
       )}
       {tab==="manager"&&<ManagerView tasks={tasks} statuses={statuses} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} getSt={getSt} effD={effD} team={team} cats={cats} isCur={isCur} today={today}/>}
@@ -743,7 +779,7 @@ function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,is
   const [sel,setSel]=useState("All");
   const memberData=team.map(m=>{
     const myTasks=tasks.filter(t=>t.owner===m.name);
-    return{...m,tasks:myTasks.map(t=>{const st=getSt(t.id);const eff=effD(t);const isOver=isCur&&st.ownerStatus!=="DONE"&&st.ownerStatus!=="N/A"&&today.getDate()>eff;return{...t,st,eff,isOver};})};
+    return{...m,tasks:myTasks.map(t=>{const st=getSt(t.id);const eff=effD(t);const isOver=isCur&&!isComplete(st)&&today.getDate()>eff;return{...t,st,eff,isOver};})};
   }).filter(m=>m.tasks.length>0);
 
   const yearRows=team.map(m=>{
@@ -813,12 +849,13 @@ function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,is
                 </thead>
                 <tbody>
                   {m.tasks.map(t=>{
-                    const isDone=t.st.ownerStatus==="DONE";
-                    const isPend=t.st.ownerStatus==="PENDING";
-                    const isNA  =t.st.ownerStatus==="N/A";
-                    const rowBg=isDone?"#f0fdf4":t.isOver?"#fef2f2":isPend?"#fffbeb":"#fff";
-                    const stColor=isDone?"#10b981":t.isOver?"#dc2626":isPend?"#f59e0b":isNA?"#94a3b8":"#cbd5e1";
-                    const stLabel=isDone?"✓ Done":t.isOver?"⚠ Overdue":isPend?"⏳ Pending":isNA?"N/A":"—";
+                    const isDone  =isComplete(t.st);
+                    const wasLateM=isLate(t.st,t.eff,dlYear,dlMi);
+                    const isPend  =t.st.ownerStatus==="PENDING";
+                    const isNA    =t.st.ownerStatus==="N/A";
+                    const rowBg=isDone&&wasLateM?"#fff7ed":isDone?"#f0fdf4":t.isOver?"#fef2f2":isPend?"#fffbeb":"#fff";
+                    const stColor=isDone?(wasLateM?"#ea580c":"#10b981"):t.isOver?"#dc2626":isPend?"#f59e0b":isNA?"#94a3b8":"#cbd5e1";
+                    const stLabel=isDone?(wasLateM?"🕐 Late":"✓ Done"):t.isOver?"⚠ Overdue":isPend?"⏳ Pending":isNA?"N/A":"—";
                     const effDate=new Date(dlYear,dlMi,t.eff);
                     return(
                       <tr key={t.id} style={{background:rowBg,borderBottom:"1px solid #f1f5f9"}}>
@@ -877,6 +914,66 @@ function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,is
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── LATE SUMMARY ─────────────────────────────────────────────────────────────
+function LateSummary({tasks,statuses,year,mi,dlYear,dlMi,holidays,team,cats}){
+  const lateTasks=tasks.map(t=>{
+    const s=statuses[`${year}-${mi}-${t.id}`]||{};
+    if(!s.completion_date) return null;
+    const eff=calcEffDay(t.deadlineDay,s.adjusted_deadline??null,dlYear,dlMi,holidays);
+    const completed=new Date(s.completion_date+'T12:00:00');
+    const deadline=new Date(dlYear,dlMi,eff);
+    if(completed<=deadline) return null;
+    const daysLate=Math.ceil((completed-deadline)/(1000*60*60*24));
+    return{...t,s,eff,daysLate,completedDate:s.completion_date};
+  }).filter(Boolean);
+
+  if(!lateTasks.length) return(
+    <div style={{background:"#f0fdf4",borderRadius:12,padding:"16px 20px",boxShadow:"0 1px 4px rgba(0,0,0,.06)",display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:20}}>✅</span>
+      <div>
+        <div style={{fontWeight:700,fontSize:14,color:"#166534"}}>No late tasks this month</div>
+        <div style={{fontSize:12,color:"#4ade80",marginTop:2}}>All completed tasks were finished on or before their deadline.</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+      <div style={{padding:"14px 20px",background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:18}}>🕐</span>
+        <div style={{fontWeight:700,fontSize:14,color:"#c2410c",flex:1}}>Late Tasks — {MONTHS[mi]} {year} Close</div>
+        <div style={{fontSize:12,color:"#ea580c",fontWeight:600}}>{lateTasks.length} task{lateTasks.length!==1?"s":""} completed after deadline</div>
+      </div>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead>
+          <tr style={{background:"#f8fafc"}}>
+            {["Task","Category","Owner","Deadline","Completed","Days Late","Notes"].map(h=>(
+              <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {lateTasks.map(t=>(
+            <tr key={t.id} style={{borderBottom:"1px solid #f1f5f9",background:"#fffbf5"}}>
+              <td style={{padding:"10px 12px",fontSize:13,fontWeight:600,color:"#1e293b",maxWidth:260,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</td>
+              <td style={{padding:"10px 12px"}}><span style={{padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:700,color:"#fff",background:cc(t.category,cats),whiteSpace:"nowrap"}}>{t.category}</span></td>
+              <td style={{padding:"10px 12px"}}>
+                <span style={{padding:"2px 7px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:tcol(t.owner,team),whiteSpace:"nowrap"}}>{ini(t.owner,team)}</span>
+              </td>
+              <td style={{padding:"10px 12px",fontSize:12,color:"#374151",whiteSpace:"nowrap"}}>{ord(t.eff)} {MONTHS[dlMi].slice(0,3)}</td>
+              <td style={{padding:"10px 12px",fontSize:12,color:"#374151",whiteSpace:"nowrap"}}>{t.completedDate}</td>
+              <td style={{padding:"10px 12px"}}>
+                <span style={{padding:"3px 8px",borderRadius:20,fontSize:11,fontWeight:700,color:"#fff",background:t.daysLate>7?"#dc2626":t.daysLate>3?"#ea580c":"#f97316",whiteSpace:"nowrap"}}>+{t.daysLate} day{t.daysLate!==1?"s":""}</span>
+              </td>
+              <td style={{padding:"10px 12px",fontSize:11,color:"#64748b",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontStyle:t.s.notes?"italic":"normal"}}>{t.s.notes||"—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
