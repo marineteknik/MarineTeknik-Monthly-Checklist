@@ -158,10 +158,16 @@ const isComplete = st => (st.ownerStatus==="DONE"||st.ownerStatus==="N/A") && (s
 // A task is "late" if it has a completion date that is after the effective deadline day
 // OR if today is past the deadline and it is still not complete
 function isLate(st, effDay, dlYear, dlMi){
+  // Compare purely as integers: YYYYMMDD — no Date objects, no timezone issues
   if(!st.completionDate) return false;
-  const completed = new Date(st.completionDate + 'T12:00:00');
-  const deadline  = new Date(dlYear, dlMi, effDay);
-  return completed > deadline;
+  // completionDate is stored as 'YYYY-MM-DD'
+  const parts = st.completionDate.split('-');
+  if(parts.length !== 3) return false;
+  const compVal = parseInt(parts[0])*10000 + parseInt(parts[1])*100 + parseInt(parts[2]);
+  // deadline: dlYear, dlMi is 0-indexed so month+1 for numeric comparison
+  const dlMiNum = dlMi + 1; // convert 0-indexed to 1-indexed
+  const deadVal = dlYear*10000 + dlMiNum*100 + effDay;
+  return compVal > deadVal;
 }
 const cc   = (cat,cats) => (cats||[]).find(c=>c.name===cat)?.color||"#374151";
 const ini  = (nm,team)  => (team||[]).find(t=>t.name===nm)?.initials||(nm||"?").split(" ").map(x=>x[0]).join("").slice(0,3).toUpperCase();
@@ -684,9 +690,8 @@ function DashboardView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,
       const s=statuses[`${year}-${i}-${t.id}`]||{};
       if(!s.completion_date) return false;
       const eff=calcEffDay(t.deadlineDay,s.adjusted_deadline??null,dlYrI,dlMiI,holidays);
-      const completed=new Date(s.completion_date+'T12:00:00');
-      const deadline=new Date(dlYrI,dlMiI,eff);
-      return completed>deadline;
+      const st2={completionDate:s.completion_date};
+      return isLate(st2,eff,dlYrI,dlMiI);
     }).length;
     return{month:m.slice(0,3),done:dn,total:tot,pct:tot>0?Math.round(dn/tot*100):0,late};
   });
@@ -924,9 +929,12 @@ function LateSummary({tasks,statuses,year,mi,dlYear,dlMi,holidays,team,cats}){
     const s=statuses[`${year}-${mi}-${t.id}`]||{};
     if(!s.completion_date) return null;
     const eff=calcEffDay(t.deadlineDay,s.adjusted_deadline??null,dlYear,dlMi,holidays);
-    const completed=new Date(s.completion_date+'T12:00:00');
+    const st2={completionDate:s.completion_date};
+    if(!isLate(st2,eff,dlYear,dlMi)) return null;
+    // Calculate days late using pure numeric comparison
+    const parts=s.completion_date.split('-');
+    const completed=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
     const deadline=new Date(dlYear,dlMi,eff);
-    if(completed<=deadline) return null;
     const daysLate=Math.ceil((completed-deadline)/(1000*60*60*24));
     return{...t,s,eff,daysLate,completedDate:s.completion_date};
   }).filter(Boolean);
