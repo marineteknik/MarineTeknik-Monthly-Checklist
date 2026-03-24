@@ -364,6 +364,11 @@ function App(){
     await sbPatchStatus(year,mi,tid,dbPatch);
   },[statuses,year,mi]);
 
+  // ── Deadline month = closing month + 1 ─────────────────────────────────────
+  const dlMi   = mi === 11 ? 0  : mi + 1;
+  const dlYear = mi === 11 ? year + 1 : year;
+  const isCur  = today.getFullYear()===dlYear && today.getMonth()===dlMi;
+
   const effD=task=>calcEffDay(task.deadlineDay,getSt(task.id).adjustedDeadline,dlYear,dlMi,holidays);
 
   // ── Month nav ────────────────────────────────────────────────────────────────
@@ -444,10 +449,6 @@ function App(){
     XLSX.writeFile(wb,`MarineTeknik_Close_${monthName}_${year}.xlsx`);
     showToast('Excel exported ✓','success');
   };
-
-  // ── Deadline month = closing month + 1 ─────────────────────────────────────
-  const dlMi   = mi === 11 ? 0  : mi + 1;
-  const dlYear = mi === 11 ? year + 1 : year;
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const catNames=[...new Set([...cats.map(c=>c.name),...tasks.map(t=>t.category)])];
