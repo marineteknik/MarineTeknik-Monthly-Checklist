@@ -364,7 +364,7 @@ function App(){
     await sbPatchStatus(year,mi,tid,dbPatch);
   },[statuses,year,mi]);
 
-  const effD=task=>calcEffDay(task.deadlineDay,getSt(task.id).adjustedDeadline,year,mi,holidays);
+  const effD=task=>calcEffDay(task.deadlineDay,getSt(task.id).adjustedDeadline,dlYear,dlMi,holidays);
 
   // ── Month nav ────────────────────────────────────────────────────────────────
   const navMon=dir=>{
@@ -445,6 +445,10 @@ function App(){
     showToast('Excel exported ✓','success');
   };
 
+  // ── Deadline month = closing month + 1 ─────────────────────────────────────
+  const dlMi   = mi === 11 ? 0  : mi + 1;
+  const dlYear = mi === 11 ? year + 1 : year;
+
   // ── Derived ──────────────────────────────────────────────────────────────────
   const catNames=[...new Set([...cats.map(c=>c.name),...tasks.map(t=>t.category)])];
   const filtered=tasks.filter(t=>(fCat==="All"||t.category===fCat)&&(fOwner==="All"||t.owner===fOwner));
@@ -453,9 +457,9 @@ function App(){
   const notS=filtered.filter(t=>!getSt(t.id).ownerStatus).length;
   const naC =filtered.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
   const pct =(filtered.length-naC)>0?Math.round(done/(filtered.length-naC)*100):0;
-  const isCur=today.getFullYear()===year&&today.getMonth()===mi;
+  const isCur=today.getFullYear()===dlYear&&today.getMonth()===dlMi;
   const overdue=isCur?tasks.filter(t=>{const s=getSt(t.id);return s.ownerStatus!=="DONE"&&s.ownerStatus!=="N/A"&&today.getDate()>effD(t);}):[];
-  const mHols=((holidays||{})[`${year}-${mi}`])||[];
+  const mHols=((holidays||{})[`${dlYear}-${dlMi}`])||[];
 
   // ── Loading screen ───────────────────────────────────────────────────────────
   if(!ready) return (
@@ -498,7 +502,11 @@ function App(){
           {mHols.length>0&&<button style={S.holPill} onClick={()=>setHolOpen(true)}>🎌 {mHols.length} holiday{mHols.length>1?"s":""}</button>}
           <div style={{display:"flex",alignItems:"center",gap:5}}>
             <button style={S.arrBtn} onClick={()=>navMon(-1)}>‹</button>
-            <button style={S.monBtn} onClick={()=>setYrOpen(true)}>{MONTHS[mi]} {year} ▾</button>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer"}} onClick={()=>setYrOpen(true)}>
+              <div style={{fontSize:9,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",lineHeight:1}}>Closing period</div>
+              <button style={S.monBtn}>{MONTHS[mi]} {year} ▾</button>
+              <div style={{fontSize:9,color:"#94a3b8",lineHeight:1}}>Due in {MONTHS[dlMi].slice(0,3)} {dlYear}</div>
+            </div>
             <button style={S.arrBtn} onClick={()=>navMon(1)}>›</button>
           </div>
           <button style={S.expBtn} onClick={doExport}>↓ Export to Excel</button>
@@ -518,6 +526,9 @@ function App(){
           <div style={{height:8,background:"#e2e8f0",borderRadius:4,overflow:"hidden"}}>
             <div style={{height:"100%",borderRadius:4,width:`${pct}%`,background:pct===100?"#10b981":pct>60?"#3b82f6":"#f59e0b",transition:"width .4s"}}/>
           </div>
+        </div>
+        <div style={{padding:"4px 12px",borderRadius:6,background:"#eff6ff",border:"1px solid #bfdbfe",fontSize:12,whiteSpace:"nowrap",color:"#1e40af",fontWeight:600}}>
+          Closing <strong>{MONTHS[mi].slice(0,3)} {year}</strong> → Due in <strong>{MONTHS[dlMi].slice(0,3)} {dlYear}</strong>
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <select style={S.sel} value={fCat}   onChange={e=>setFCat(e.target.value)}>
@@ -546,16 +557,16 @@ function App(){
         {view==="checklist"&&(
           tasks.length===0
             ?<EmptyState onAdd={()=>setEditTask(false)} onSettings={()=>setView("settings")}/>
-            :<ChecklistView tasks={filtered} getSt={getSt} patch={patch} effD={effD} team={team} cats={cats} year={year} mi={mi} isCur={isCur} todayD={today.getDate()} setTasks={setTasks} setStatusTask={setStatusTask} setEditTask={setEditTask} deleteTask={deleteTask}/>
+            :<ChecklistView tasks={filtered} getSt={getSt} patch={patch} effD={effD} team={team} cats={cats} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} isCur={isCur} todayD={today.getDate()} setTasks={setTasks} setStatusTask={setStatusTask} setEditTask={setEditTask} deleteTask={deleteTask}/>
         )}
-        {view==="dashboard"&&<DashboardView tasks={tasks} statuses={statuses} year={year} mi={mi} getSt={getSt} effD={effD} team={team} cats={cats} holidays={holidays} patch={patch}/>}
+        {view==="dashboard"&&<DashboardView tasks={tasks} statuses={statuses} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} getSt={getSt} effD={effD} team={team} cats={cats} holidays={holidays} patch={patch}/>}
         {view==="settings"&&<SettingsView team={team} setTeam={saveTeam} tasks={tasks} setTasks={setTasks} cats={cats} setCats={saveCats} holidays={holidays} setHolidays={saveHolidays} year={year} mi={mi} setEditTask={setEditTask} deleteTask={deleteTask}/>}
       </div>
 
       {/* ── MODALS ── */}
-      {statusTask&&<StatusModal task={statusTask} getSt={getSt} patch={patch} onClose={()=>setStatusTask(null)} cats={cats} year={year} mi={mi} holidays={holidays}/>}
+      {statusTask&&<StatusModal task={statusTask} getSt={getSt} patch={patch} onClose={()=>setStatusTask(null)} cats={cats} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} holidays={holidays}/>}
       {editTask!==null&&<EditTaskModal task={editTask||null} onClose={()=>setEditTask(null)} onSave={saveTask} onDelete={editTask?()=>{deleteTask(editTask.id);setEditTask(null);}:null} team={team} cats={cats} setCats={saveCats}/>}
-      {holOpen&&<HolidayModal year={year} mi={mi} holidays={holidays} setHolidays={saveHolidays} onClose={()=>setHolOpen(false)}/>}
+      {holOpen&&<HolidayModal year={dlYear} mi={dlMi} holidays={holidays} setHolidays={saveHolidays} onClose={()=>setHolOpen(false)}/>}
       {yrOpen&&<YearPickModal year={year} mi={mi} onSelect={(y,m)=>{setYear(y);setMi(m);setYrOpen(false);}} onClose={()=>setYrOpen(false)}/>}
 
       {/* ── TOAST ── */}
@@ -584,7 +595,7 @@ function EmptyState({onAdd,onSettings}){
 }
 
 // ── CHECKLIST VIEW ────────────────────────────────────────────────────────────
-function ChecklistView({tasks,getSt,patch,effD,team,cats,year,mi,isCur,todayD,setStatusTask,setEditTask,deleteTask}){
+function ChecklistView({tasks,getSt,patch,effD,team,cats,year,mi,dlYear,dlMi,isCur,todayD,setStatusTask,setEditTask,deleteTask}){
   const orderedCats=[...cats.map(c=>c.name),...tasks.map(t=>t.category).filter(c=>!cats.find(x=>x.name===c))];
   const grouped={};
   tasks.forEach(t=>{if(!grouped[t.category])grouped[t.category]=[];grouped[t.category].push(t);});
@@ -612,7 +623,7 @@ function ChecklistView({tasks,getSt,patch,effD,team,cats,year,mi,isCur,todayD,se
               const isPend=st.ownerStatus==="PENDING";
               const isOver=isCur&&!isDone&&st.ownerStatus!=="N/A"&&todayD>eff;
               const rowBg=isDone?"#f0fdf4":isPend?"#fffbeb":isOver?"#fef2f2":"#fff";
-              const effDate=new Date(year,mi,eff);
+              const effDate=new Date(dlYear,dlMi,eff);
               const dow=DOWS[effDate.getDay()];
 
               return(
@@ -632,7 +643,7 @@ function ChecklistView({tasks,getSt,patch,effD,team,cats,year,mi,isCur,todayD,se
 
                   <div style={{textAlign:"right",flexShrink:0,minWidth:118,padding:"5px 10px",borderRadius:8,background:isOver?"#fef2f2":moved?"#f5f3ff":"#f8fafc",border:`1px solid ${isOver?"#fca5a5":moved?"#ddd6fe":"#e2e8f0"}`}}>
                     <div style={{fontSize:13,fontWeight:700,color:isOver?"#dc2626":moved?"#7c3aed":"#1e293b"}}>{isOver?"⚠ ":""}{dow} {ord(eff)}</div>
-                    <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{MONTHS[mi].slice(0,3)} {year}</div>
+                    <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{MONTHS[dlMi].slice(0,3)} {dlYear}</div>
                     {moved&&<div style={{fontSize:10,color:adj?"#7c3aed":"#0891b2",fontWeight:600,marginTop:1}}>{adj?"adjusted":"skipped"} from {ord(base)}</div>}
                   </div>
 
@@ -669,11 +680,11 @@ function MiniDrop({label,value,onChange}){
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function DashboardView({tasks,statuses,year,mi,getSt,effD,team,cats,holidays,patch}){
+function DashboardView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,holidays,patch}){
   const [tab,setTab]=useState("overview");
   const catNames=[...new Set(tasks.map(t=>t.category))];
   const today=new Date();
-  const isCur=today.getFullYear()===year&&today.getMonth()===mi;
+  const isCur=today.getFullYear()===dlYear&&today.getMonth()===dlMi;
 
   const mStats=MONTHS.map((m,i)=>{
     const tot=tasks.length;
@@ -756,21 +767,21 @@ function DashboardView({tasks,statuses,year,mi,getSt,effD,team,cats,holidays,pat
         </>
       )}
 
-      {tab==="manager"&&<ManagerView tasks={tasks} statuses={statuses} year={year} mi={mi} getSt={getSt} effD={effD} team={team} cats={cats} isCur={isCur} today={today}/>}
-      {tab==="deadlines"&&<DeadlineManager tasks={tasks} year={year} mi={mi} holidays={holidays} getSt={getSt} patch={patch} cats={cats} team={team}/>}
+      {tab==="manager"&&<ManagerView tasks={tasks} statuses={statuses} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} getSt={getSt} effD={effD} team={team} cats={cats} isCur={isCur} today={today}/>}
+      {tab==="deadlines"&&<DeadlineManager tasks={tasks} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} holidays={holidays} getSt={getSt} patch={patch} cats={cats} team={team}/>}
     </div>
   );
 }
 
 // ── DEADLINE MANAGER ──────────────────────────────────────────────────────────
-function DeadlineManager({tasks,year,mi,holidays,getSt,patch,cats,team}){
-  const mHols=((holidays||{})[`${year}-${mi}`])||[];
-  const dim=new Date(year,mi+1,0).getDate();
+function DeadlineManager({tasks,year,mi,dlYear,dlMi,holidays,getSt,patch,cats,team}){
+  const mHols=((holidays||{})[`${dlYear}-${dlMi}`])||[];
+  const dim=new Date(dlYear,dlMi+1,0).getDate();
   const [local,setLocal]=useState({});
   const [saved,setSaved]=useState(false);
 
   const getVal=tid=>{if(local[tid]!==undefined)return local[tid];const a=getSt(tid).adjustedDeadline;return a!=null?String(a):"";};
-  const getEff=(task,val)=>calcEffDay(task.deadlineDay,val!==""&&val!=null?parseInt(val):null,year,mi,holidays);
+  const getEff=(task,val)=>calcEffDay(task.deadlineDay,val!==""&&val!=null?parseInt(val):null,dlYear,dlMi,holidays);
   const hasChanges=Object.keys(local).length>0;
 
   const saveAll=()=>{
@@ -784,7 +795,7 @@ function DeadlineManager({tasks,year,mi,holidays,getSt,patch,cats,team}){
       <div style={{background:"#fff",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,marginBottom:mHols.length?14:0}}>
           <div>
-            <div style={{fontWeight:700,fontSize:16}}>📅 Deadline Manager — {MONTHS[mi]} {year}</div>
+            <div style={{fontWeight:700,fontSize:16}}>📅 Deadline Manager — Closing {MONTHS[mi]} {year} · Due in {MONTHS[dlMi]} {dlYear}</div>
             <div style={{fontSize:13,color:"#64748b",marginTop:4}}>Override base deadlines for this month. Weekends and holidays are always skipped forward automatically.</div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -808,7 +819,7 @@ function DeadlineManager({tasks,year,mi,holidays,getSt,patch,cats,team}){
           const val=getVal(task.id);
           const eff=getEff(task,val);
           const base=task.deadlineDay;
-          const effDate=new Date(year,mi,eff);
+          const effDate=new Date(dlYear,dlMi,eff);
           const dow=DOWS[effDate.getDay()];
           const wknd=effDate.getDay()===0||effDate.getDay()===6;
           const isHol=mHols.some(h=>h.day===eff);
@@ -834,7 +845,7 @@ function DeadlineManager({tasks,year,mi,holidays,getSt,patch,cats,team}){
               </div>
               <div style={{textAlign:"center"}}>
                 <div style={{fontSize:14,fontWeight:700,color:moved?"#7c3aed":hasAdj?"#0891b2":"#1e293b"}}>{ord(eff)}</div>
-                <div style={{fontSize:11,color:"#94a3b8"}}>{MONTHS[mi].slice(0,3)} {year}</div>
+                <div style={{fontSize:11,color:"#94a3b8"}}>{MONTHS[dlMi].slice(0,3)} {dlYear}</div>
                 {moved&&<div style={{fontSize:10,color:"#7c3aed",fontWeight:600,marginTop:1}}>↑ auto-skipped</div>}
               </div>
               <div style={{textAlign:"center"}}>
@@ -848,15 +859,15 @@ function DeadlineManager({tasks,year,mi,holidays,getSt,patch,cats,team}){
           );
         })}
       </div>
-      <div style={{fontSize:12,color:"#94a3b8",textAlign:"right"}}>💡 Leave "Adjusted" blank to use the base deadline. Applies to {MONTHS[mi]} {year} only.</div>
+      <div style={{fontSize:12,color:"#94a3b8",textAlign:"right"}}>💡 Leave "Adjusted" blank to use the base deadline. Deadlines fall in {MONTHS[dlMi]} {dlYear}.</div>
     </div>
   );
 }
 
 // ── STATUS MODAL ──────────────────────────────────────────────────────────────
-function StatusModal({task,getSt,patch,onClose,cats,year,mi,holidays}){
+function StatusModal({task,getSt,patch,onClose,cats,year,mi,dlYear,dlMi,holidays}){
   const [local,setLocal]=useState({...getSt(task.id)});
-  const eff=calcEffDay(task.deadlineDay,local.adjustedDeadline,year,mi,holidays);
+  const eff=calcEffDay(task.deadlineDay,local.adjustedDeadline,dlYear,dlMi,holidays);
   const save=()=>{patch(task.id,local);onClose();};
   return(
     <Overlay onClose={onClose}>
@@ -866,7 +877,7 @@ function StatusModal({task,getSt,patch,onClose,cats,year,mi,holidays}){
             <span style={{fontSize:11,fontWeight:700,color:"#fff",padding:"2px 8px",borderRadius:4,textTransform:"uppercase",background:cc(task.category,cats)}}>{task.category}</span>
             <div style={{fontSize:16,fontWeight:700,marginTop:8}}>{task.name}</div>
             <div style={{fontSize:12,color:"#64748b",marginTop:3}}>
-              Base: <strong>{ord(task.deadlineDay)}</strong> · Effective: <strong style={{color:eff!==task.deadlineDay?"#7c3aed":"#374151"}}>{ord(eff)} — {dayLabel(year,mi,eff)}</strong>
+              Base: <strong>{ord(task.deadlineDay)}</strong> · Effective: <strong style={{color:eff!==task.deadlineDay?"#7c3aed":"#374151"}}>{ord(eff)} {MONTHS[dlMi].slice(0,3)} — {dayLabel(dlYear,dlMi,eff)}</strong>
               {eff!==task.deadlineDay&&<span style={{color:"#7c3aed"}}> (adjusted for weekends/holidays)</span>}
             </div>
           </div>
@@ -970,10 +981,10 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
   const catNames=[...new Set([...cats.map(c=>c.name),...tasks.map(t=>t.category)])];
   const visible=tasks.filter(t=>(tab!=="tasks")||!filter.trim()||t.name.toLowerCase().includes(filter.toLowerCase()));
 
-  const moveTask=(id,dir)=>{
+  const moveTask=async(id,dir)=>{
     const arr=[...tasks];const idx=arr.findIndex(t=>t.id===id);const to=idx+dir;
     if(to<0||to>=arr.length)return;
-    [arr[idx],arr[to]]=[arr[to],arr[idx]];setTasks(arr);
+    [arr[idx],arr[to]]=[arr[to],arr[idx]];await setTasks(arr);
   };
 
   const [newMem,setNewMem]=useState("");
@@ -1025,20 +1036,20 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
                         <div style={{fontSize:13,fontWeight:600,color:"#1e293b",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{task.name}</div>
                       </div>
                       <div style={{textAlign:"center"}}>
-                        <select style={{padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",maxWidth:105,cursor:"pointer"}} value={task.category} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,category:e.target.value}:x))}>
+                        <select style={{padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",maxWidth:105,cursor:"pointer"}} value={task.category} onChange={async e=>await setTasks(tasks.map(x=>x.id===task.id?{...x,category:e.target.value}:x))}>
                           {catNames.map(c=><option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                       <div style={{textAlign:"center"}}>
-                        <select style={{padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",maxWidth:105,cursor:"pointer"}} value={task.owner} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,owner:e.target.value}:x))}>
+                        <select style={{padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",maxWidth:105,cursor:"pointer"}} value={task.owner} onChange={async e=>await setTasks(tasks.map(x=>x.id===task.id?{...x,owner:e.target.value}:x))}>
                           {team.map(m=><option key={m.name} value={m.name}>{m.name.split(" ")[0]}</option>)}
                         </select>
                       </div>
                       <div style={{textAlign:"center"}}>
-                        <input type="number" min="1" max="31" style={{width:52,padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,textAlign:"center",background:"#f8fafc"}} value={task.startDay} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,startDay:parseInt(e.target.value)||1}:x))}/>
+                        <input type="number" min="1" max="31" style={{width:52,padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,textAlign:"center",background:"#f8fafc"}} value={task.startDay} onChange={async e=>await setTasks(tasks.map(x=>x.id===task.id?{...x,startDay:parseInt(e.target.value)||1}:x))}/>
                       </div>
                       <div style={{textAlign:"center"}}>
-                        <input type="number" min="1" max="31" style={{width:52,padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,textAlign:"center",background:"#f8fafc"}} value={task.deadlineDay} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,deadlineDay:parseInt(e.target.value)||1}:x))}/>
+                        <input type="number" min="1" max="31" style={{width:52,padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,textAlign:"center",background:"#f8fafc"}} value={task.deadlineDay} onChange={async e=>await setTasks(tasks.map(x=>x.id===task.id?{...x,deadlineDay:parseInt(e.target.value)||1}:x))}/>
                       </div>
                       <div style={{display:"flex",gap:4,justifyContent:"center"}}>
                         <button style={{...S.smBtn,color:"#7c3aed",borderColor:"#ddd6fe",padding:"3px 8px",fontSize:12}} onClick={()=>setEditTask(task)}>✏</button>
@@ -1069,8 +1080,8 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
                         <button style={S.saveBtn} onClick={()=>{
                           const old=cats[editCat.idx].name,nw=editCat.name.trim();
                           const newCats=cats.map((c,i)=>i===editCat.idx?{name:nw,color:editCat.color}:c);
-                          setCats(newCats);
-                          if(old!==nw) setTasks(tasks.map(t=>t.category===old?{...t,category:nw}:t));
+                          await setCats(newCats);
+                          if(old!==nw) await setTasks(tasks.map(t=>t.category===old?{...t,category:nw}:t));
                           setEditCat(null);
                         }}>Save</button>
                         <button style={S.cancelBtn} onClick={()=>setEditCat(null)}>Cancel</button>
@@ -1083,7 +1094,7 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
                         <button style={S.smBtn} onClick={()=>setEditCat({idx,name:cat.name,color:cat.color})}>Edit</button>
                         <button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5"}} onClick={()=>{
                           if(tc>0){alert(`Can't delete — ${tc} tasks use this category.`);return;}
-                          if(window.confirm(`Delete "${cat.name}"?`)) setCats(cats.filter((_,i)=>i!==idx));
+                          if(window.confirm(`Delete "${cat.name}"?`)) await setCats(cats.filter((_,i)=>i!==idx));
                         }}>Delete</button>
                       </div>
                     </>
@@ -1095,7 +1106,7 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
               <div style={{width:28,height:28,borderRadius:6,background:nCatC,flexShrink:0,border:"2px solid rgba(0,0,0,.1)"}}/>
               <input style={{...S.inp,flex:1,minWidth:120}} placeholder="New category name" value={nCatN} onChange={e=>setNCatN(e.target.value)}/>
               <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{palette.slice(0,10).map(c=><div key={c} onClick={()=>setNCatC(c)} style={{width:20,height:20,borderRadius:4,background:c,cursor:"pointer",border:nCatC===c?"3px solid #0f172a":"2px solid transparent"}}/>)}</div>
-              <button style={S.addBtn} onClick={()=>{if(!nCatN.trim())return;setCats([...cats,{name:nCatN.trim(),color:nCatC}]);setNCatN("");}}>+ Add</button>
+              <button style={S.addBtn} onClick={async()=>{if(!nCatN.trim())return;await setCats([...cats,{name:nCatN.trim(),color:nCatC}]);setNCatN("");}}>+ Add</button>
             </div>
           </SCard>
         )}
@@ -1116,7 +1127,7 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
                       </div>
                       <FRow label="Color"><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{tColors.map(c=><div key={c} onClick={()=>setEditMem(p=>({...p,color:c}))} style={{width:26,height:26,borderRadius:"50%",background:c,cursor:"pointer",border:editMem.color===c?"3px solid #0f172a":"2px solid transparent",flexShrink:0}}/>)}</div></FRow>
                       <div style={{display:"flex",gap:8}}>
-                        <button style={S.saveBtn} onClick={()=>{setTeam(team.map((x,j)=>j===editMem.idx?{name:editMem.name.trim(),initials:editMem.initials.trim().slice(0,3),color:editMem.color}:x));setEditMem(null);}}>Save</button>
+                        <button style={S.saveBtn} onClick={async()=>{await setTeam(team.map((x,j)=>j===editMem.idx?{name:editMem.name.trim(),initials:editMem.initials.trim().slice(0,3),color:editMem.color}:x));setEditMem(null);}}>Save</button>
                         <button style={S.cancelBtn} onClick={()=>setEditMem(null)}>Cancel</button>
                       </div>
                     </div>
@@ -1126,7 +1137,7 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
                       <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{m.name}</div><div style={{fontSize:12,color:"#64748b"}}>{tc} task{tc!==1?"s":""} assigned</div></div>
                       <div style={{display:"flex",gap:6}}>
                         <button style={S.smBtn} onClick={()=>setEditMem({idx:i,...m})}>Edit</button>
-                        <button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5"}} onClick={()=>{if(tc>0&&!window.confirm(`${m.name} owns ${tc} tasks. Remove anyway?`))return;setTeam(team.filter((_,j)=>j!==i));}}>Remove</button>
+                        <button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5"}} onClick={async()=>{if(tc>0&&!window.confirm(`${m.name} owns ${tc} tasks. Remove anyway?`))return;await setTeam(team.filter((_,j)=>j!==i));}}>Remove</button>
                       </div>
                     </div>
                   )}
@@ -1134,8 +1145,8 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
               );
             })}
             <div style={{display:"flex",gap:8,marginTop:10}}>
-              <input style={{...S.inp,flex:1}} placeholder="Full name of new team member" value={newMem} onChange={e=>setNewMem(e.target.value)} onKeyDown={e=>{if(e.key!=="Enter"||!newMem.trim())return;const ini2=newMem.trim().split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,3);setTeam([...team,{name:newMem.trim(),initials:ini2,color:tColors[team.length%tColors.length]}]);setNewMem("");}}/>
-              <button style={S.addBtn} onClick={()=>{if(!newMem.trim())return;const ini2=newMem.trim().split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,3);setTeam([...team,{name:newMem.trim(),initials:ini2,color:tColors[team.length%tColors.length]}]);setNewMem("");}}>Add Member</button>
+              <input style={{...S.inp,flex:1}} placeholder="Full name of new team member" value={newMem} onChange={e=>setNewMem(e.target.value)} onKeyDown={async e=>{if(e.key!=="Enter"||!newMem.trim())return;const ini2=newMem.trim().split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,3);await setTeam([...team,{name:newMem.trim(),initials:ini2,color:tColors[team.length%tColors.length]}]);setNewMem("");}}/>
+              <button style={S.addBtn} onClick={async()=>{if(!newMem.trim())return;const ini2=newMem.trim().split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,3);await setTeam([...team,{name:newMem.trim(),initials:ini2,color:tColors[team.length%tColors.length]}]);setNewMem("");}}>Add Member</button>
             </div>
           </SCard>
         )}
@@ -1246,7 +1257,7 @@ function Overlay({children,onClose}){
 }
 
 // ── MANAGER VIEW ─────────────────────────────────────────────────────────────
-function ManagerView({tasks,statuses,year,mi,getSt,effD,team,cats,isCur,today}){
+function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,isCur,today}){
   const [selMember,setSelMember]=useState("All");
 
   // For each team member, get their tasks and status for this month
@@ -1321,7 +1332,7 @@ function ManagerView({tasks,statuses,year,mi,getSt,effD,team,cats,isCur,today}){
             <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
               <div style={{width:32,height:32,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
               <div style={{fontWeight:700,fontSize:15,color:"#1e293b",flex:1}}>{m.name}</div>
-              <div style={{fontSize:12,color:"#64748b",fontWeight:600}}>{done}/{m.tasks.length} complete — {MONTHS[mi].slice(0,3)} {year}</div>
+              <div style={{fontSize:12,color:"#64748b",fontWeight:600}}>{done}/{m.tasks.length} complete — {MONTHS[mi].slice(0,3)} {year} close · due {MONTHS[dlMi].slice(0,3)} {dlYear}</div>
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
@@ -1344,7 +1355,7 @@ function ManagerView({tasks,statuses,year,mi,getSt,effD,team,cats,isCur,today}){
                     const rowBg=isDone?"#f0fdf4":t.isOver?"#fef2f2":isPend?"#fffbeb":"#fff";
                     const statusColor=isDone?"#10b981":t.isOver?"#dc2626":isPend?"#f59e0b":isNA?"#94a3b8":"#cbd5e1";
                     const statusLabel=isDone?"✓ Done":t.isOver?"⚠ Overdue":isPend?"⏳ Pending":isNA?"N/A":"—";
-                    const effDate=new Date(year,mi,t.eff);
+                    const effDate=new Date(dlYear,dlMi,t.eff);
                     const dow=DOWS[effDate.getDay()];
                     return(
                       <tr key={t.id} style={{background:rowBg,borderBottom:"1px solid #f1f5f9"}}>
