@@ -458,7 +458,6 @@ function App(){
   const notS=filtered.filter(t=>!getSt(t.id).ownerStatus).length;
   const naC =filtered.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
   const pct =(filtered.length-naC)>0?Math.round(done/(filtered.length-naC)*100):0;
-  const isCur=today.getFullYear()===dlYear&&today.getMonth()===dlMi;
   const overdue=isCur?tasks.filter(t=>{const s=getSt(t.id);return s.ownerStatus!=="DONE"&&s.ownerStatus!=="N/A"&&today.getDate()>effD(t);}):[];
   const mHols=((holidays||{})[`${dlYear}-${dlMi}`])||[];
 
