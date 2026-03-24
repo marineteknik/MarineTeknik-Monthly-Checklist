@@ -55,16 +55,17 @@ const DEFAULT_TEAM = [
 ];
 
 const DEFAULT_CATS = [
-  {name:"Bank",        color:"#1e40af"},
-  {name:"Credit Card", color:"#7c3aed"},
-  {name:"Petty Cash",  color:"#0891b2"},
-  {name:"AP/AR",       color:"#b45309"},
-  {name:"Cut-off",     color:"#15803d"},
-  {name:"Logistics",   color:"#dc2626"},
-  {name:"System",      color:"#374151"},
-  {name:"Journals",    color:"#9333ea"},
-  {name:"Liabilities", color:"#0f766e"},
-  {name:"Tax",         color:"#c2410c"},
+  {name:"1. Cash & Banking",         color:"#1e40af"},
+  {name:"2. Credit Cards",           color:"#7c3aed"},
+  {name:"3. Accounts Payable",       color:"#b45309"},
+  {name:"4. Accounts Receivable",    color:"#0891b2"},
+  {name:"5. Cut-Off & Coordination", color:"#15803d"},
+  {name:"6. Fixed Assets & Journals",color:"#0e7490"},
+  {name:"7. Accruals & Liabilities", color:"#0f766e"},
+  {name:"8. Inventory & Scrubs",     color:"#be185d"},
+  {name:"9. WIP & COGS",             color:"#c2410c"},
+  {name:"10. BC Period Control",     color:"#374151"},
+  {name:"11. Financial Reporting",   color:"#065f46"},
 ];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -125,6 +126,71 @@ async function sbPatchStatus(year,mi,taskId,patch){
   }
 }
 
+// ── DEFAULT TASKS (pre-loaded on first launch) ───────────────────────────────
+const DEFAULT_TASKS = [
+  // ── 1. Cash & Banking ──────────────────────────────────────────────────────
+  {id:1,  name:"Bank Reconciliation – 7206",                          category:"1. Cash & Banking",         owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  {id:2,  name:"Bank Reconciliation – MMA 1397",                      category:"1. Cash & Banking",         owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  {id:3,  name:"Bank Reconciliation – Loan Statement (LOC)",          category:"1. Cash & Banking",         owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:1,  deadlineDay:5},
+  {id:6,  name:"Petty Cash Reconciliation – USD",                     category:"1. Cash & Banking",         owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:5},
+  {id:7,  name:"Petty Cash Reconciliation – EUR",                     category:"1. Cash & Banking",         owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:5},
+  {id:8,  name:"Petty Cash Reconciliation – PLN",                     category:"1. Cash & Banking",         owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:5},
+  // ── 2. Credit Cards ────────────────────────────────────────────────────────
+  {id:4,  name:"Credit Card Reconciliation – TravelBank/Elan Statement",category:"2. Credit Cards",        owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:3},
+  {id:5,  name:"Credit Card – Record Current Month Transactions",     category:"2. Credit Cards",           owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:12},
+  {id:9,  name:"All Credit Card Receipts Saved on OneDrive",          category:"2. Credit Cards",           owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:3,  deadlineDay:10},
+  // ── 3. Accounts Payable ────────────────────────────────────────────────────
+  {id:10, name:"AP Reconciliation – Excl. Labor & Outsourcing",       category:"3. Accounts Payable",       owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:12},
+  {id:23, name:"AP Reconciliation – 20101 Suppliers Only",            category:"3. Accounts Payable",       owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:3,  deadlineDay:15},
+  {id:24, name:"AP OPEX – Vendor Invoices & Expenses (Overhead)",     category:"3. Accounts Payable",       owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:12},
+  {id:25, name:"Record Supplier Invoices in Liabilities",             category:"3. Accounts Payable",       owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:15},
+  // ── 4. Accounts Receivable ─────────────────────────────────────────────────
+  {id:11, name:"AR Reconciliation",                                   category:"4. Accounts Receivable",    owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:5,  deadlineDay:10},
+  {id:26, name:"Accrued Revenue – Record Assets",                     category:"4. Accounts Receivable",    owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:13, deadlineDay:15},
+  // ── 5. Cut-Off & Coordination ──────────────────────────────────────────────
+  {id:12, name:"Cut-Off Email – Cash Advance Settlement (CC: Quality)",category:"5. Cut-Off & Coordination",owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:3,  deadlineDay:4},
+  {id:13, name:"Record Cash Advance Settlement in BC",                category:"5. Cut-Off & Coordination", owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:12},
+  {id:14, name:"Cut-Off Email – Expenses & Deductions (CC: Quality)", category:"5. Cut-Off & Coordination", owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:3,  deadlineDay:4},
+  {id:15, name:"Record Expenses & Deductions in BC",                  category:"5. Cut-Off & Coordination", owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:3,  deadlineDay:12},
+  {id:16, name:"Cut-Off Email – Labor Usage (CC: Quality)",           category:"5. Cut-Off & Coordination", owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:12, deadlineDay:13},
+  {id:17, name:"Record Labor Usage in BC",                            category:"5. Cut-Off & Coordination", owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:3,  deadlineDay:12},
+  {id:18, name:"Logistics PL – Cut-Off Usage Confirmation Email",     category:"5. Cut-Off & Coordination", owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:12, deadlineDay:13},
+  {id:19, name:"Logistics US – Cut-Off Usage Confirmation Email",     category:"5. Cut-Off & Coordination", owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:12, deadlineDay:13},
+  // ── 6. Fixed Assets & Journals ─────────────────────────────────────────────
+  {id:21, name:"Fixed Assets – Record Depreciation",                  category:"6. Fixed Assets & Journals",owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  {id:22, name:"Journals – Run Monthly Recurring",                    category:"6. Fixed Assets & Journals",owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  // ── 7. Accruals & Liabilities ──────────────────────────────────────────────
+  {id:27, name:"Tax – Accrue Taxes",                                  category:"7. Accruals & Liabilities",  owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:15, deadlineDay:17},
+  {id:28, name:"Accrued Expenses – Open Expenses",                    category:"7. Accruals & Liabilities",  owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:12},
+  // ── 8. Inventory & Scrubs ──────────────────────────────────────────────────
+  {id:29, name:"Inventory – Prepaid Service, Materials & Supplies (10803 & 10809)", category:"8. Inventory & Scrubs", owner:"Ewelina Perfilow", reviewer:"Ewelina Perfilow", startDay:12, deadlineDay:17},
+  {id:30, name:"Inventory Scrub – 10350",                             category:"8. Inventory & Scrubs",     owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:17, deadlineDay:20},
+  {id:31, name:"Inventory Scrub – 10399",                             category:"8. Inventory & Scrubs",     owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:17, deadlineDay:20},
+  {id:32, name:"Technical Account Scrub – 20650",                     category:"8. Inventory & Scrubs",     owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:17, deadlineDay:20},
+  {id:33, name:"Accounts Scrub – All Excl. Cash, 10803 & 10809",      category:"8. Inventory & Scrubs",     owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:34, name:"Accounts Scrub – All Excl. AP/AR/CC",                 category:"8. Inventory & Scrubs",     owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:35, name:"Accounts Scrub – 3xxxx",                              category:"8. Inventory & Scrubs",     owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:36, name:"Accounts Scrub – 4xxxx",                              category:"8. Inventory & Scrubs",     owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:15, deadlineDay:17},
+  {id:37, name:"Accounts Scrub – 5xxxx",                              category:"8. Inventory & Scrubs",     owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:15, deadlineDay:17},
+  {id:38, name:"Accounts Scrub – 6xxxx",                              category:"8. Inventory & Scrubs",     owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:17},
+  {id:39, name:"Accounts Scrub – 7xxxx",                              category:"8. Inventory & Scrubs",     owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:15, deadlineDay:17},
+  {id:40, name:"Accounts Scrub – 8xxxx",                              category:"8. Inventory & Scrubs",     owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:15, deadlineDay:17},
+  {id:41, name:"Accounts Scrub – 9xxxx",                              category:"8. Inventory & Scrubs",     owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:15, deadlineDay:17},
+  // ── 9. WIP & COGS ──────────────────────────────────────────────────────────
+  {id:42, name:"WIP – Projects % of Completion",                      category:"9. WIP & COGS",             owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:43, name:"COGS – Check Expired/Obsolete Goods with Logistics",  category:"9. WIP & COGS",             owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:12, deadlineDay:12},
+  // ── 10. BC Period Control ──────────────────────────────────────────────────
+  {id:20, name:"BC – Close Month for All Users (Excl. Finance)",      category:"10. BC Period Control",     owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:12, deadlineDay:13},
+  {id:44, name:"BC – Close Month for Finance Users",                  category:"10. BC Period Control",     owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:20},
+  {id:46, name:"BC – Open Month for All Users",                       category:"10. BC Period Control",     owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:25},
+  {id:47, name:"BC – Month-End Inventory Periods",                    category:"10. BC Period Control",     owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:12, deadlineDay:13},
+  {id:48, name:"BC – Open New Month G/L",                             category:"10. BC Period Control",     owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:25},
+  {id:49, name:"BC – Year-Open: Accounting Periods",                  category:"10. BC Period Control",     owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:25},
+  {id:50, name:"BC – Year-Close: Accounting Periods",                 category:"10. BC Period Control",     owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:1,  deadlineDay:31},
+  // ── 11. Financial Reporting ────────────────────────────────────────────────
+  {id:45, name:"Generate Financial Statements",                       category:"11. Financial Reporting",   owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:20, deadlineDay:25},
+];
+
 // ── APP ───────────────────────────────────────────────────────────────────────
 function App(){
   const today=new Date();
@@ -165,9 +231,19 @@ function App(){
       try{
         const cfg=await sbLoadConfig();
         if(cfg){
-          if(cfg.tasks.length>0) setTasksRaw(cfg.tasks);
-          setTeam(cfg.team);
-          setCats(cfg.cats);
+          if(cfg.tasks.length>0){
+            setTasksRaw(cfg.tasks);
+          } else {
+            // First launch — seed all defaults into Supabase
+            setTasksRaw(DEFAULT_TASKS);
+            setCats(DEFAULT_CATS);
+            setTeam(DEFAULT_TEAM);
+            await sbSaveConfig('tasks', DEFAULT_TASKS);
+            await sbSaveConfig('cats', DEFAULT_CATS);
+            await sbSaveConfig('team', DEFAULT_TEAM);
+          }
+          if(cfg.team && cfg.team.length>0) setTeam(cfg.team);
+          if(cfg.cats && cfg.cats.length>0) setCats(cfg.cats);
           setHolidays(cfg.holidays);
         }
         const sts=await sbLoadStatuses(today.getFullYear(),today.getMonth());
@@ -596,6 +672,8 @@ function MiniDrop({label,value,onChange}){
 function DashboardView({tasks,statuses,year,mi,getSt,effD,team,cats,holidays,patch}){
   const [tab,setTab]=useState("overview");
   const catNames=[...new Set(tasks.map(t=>t.category))];
+  const today=new Date();
+  const isCur=today.getFullYear()===year&&today.getMonth()===mi;
 
   const mStats=MONTHS.map((m,i)=>{
     const tot=tasks.length;
@@ -613,7 +691,8 @@ function DashboardView({tasks,statuses,year,mi,getSt,effD,team,cats,holidays,pat
   const oStats=team.map(m=>{
     const mt=tasks.filter(t=>t.owner===m.name);if(!mt.length)return null;
     const dn=mt.filter(t=>getSt(t.id).ownerStatus==="DONE").length;
-    return{...m,total:mt.length,done:dn,pct:Math.round(dn/mt.length*100)};
+    const ov=isCur?mt.filter(t=>{const s=getSt(t.id);return s.ownerStatus!=="DONE"&&s.ownerStatus!=="N/A"&&today.getDate()>effD(t);}).length:0;
+    return{...m,total:mt.length,done:dn,overdue:ov,pct:Math.round(dn/mt.length*100)};
   }).filter(Boolean);
 
   if(tasks.length===0) return <div style={{textAlign:"center",padding:"60px 20px",color:"#94a3b8",fontSize:15}}>No tasks yet.</div>;
@@ -621,7 +700,7 @@ function DashboardView({tasks,statuses,year,mi,getSt,effD,team,cats,holidays,pat
   return(
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       <div style={{display:"flex",gap:4,background:"#e2e8f0",borderRadius:8,padding:3,width:"fit-content"}}>
-        {[["overview","📊 Overview"],["deadlines","📅 Deadline Manager"]].map(([v,l])=>(
+        {[["overview","📊 Overview"],["manager","👔 Manager View"],["deadlines","📅 Deadline Manager"]].map(([v,l])=>(
           <button key={v} style={{padding:"7px 18px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:tab===v?"#fff":"transparent",color:tab===v?"#0f172a":"#64748b",boxShadow:tab===v?"0 1px 3px rgba(0,0,0,.1)":"none"}} onClick={()=>setTab(v)}>{l}</button>
         ))}
       </div>
@@ -664,7 +743,7 @@ function DashboardView({tasks,statuses,year,mi,getSt,effD,team,cats,holidays,pat
                 <div key={m.name} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
                   <div style={{width:36,height:36,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:3}}>{m.name.split(" ").slice(0,2).join(" ")}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:3}}>{m.name.split(" ").slice(0,2).join(" ")}{m.overdue>0&&<span style={{marginLeft:8,fontSize:11,color:"#dc2626",fontWeight:700}}>⚠ {m.overdue} overdue</span>}</div>
                     <div style={{height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
                       <div style={{height:"100%",borderRadius:3,background:m.pct===100?"#10b981":m.color,width:`${m.pct}%`}}/>
                     </div>
@@ -676,6 +755,8 @@ function DashboardView({tasks,statuses,year,mi,getSt,effD,team,cats,holidays,pat
           </div>
         </>
       )}
+
+      {tab==="manager"&&<ManagerView tasks={tasks} statuses={statuses} year={year} mi={mi} getSt={getSt} effD={effD} team={team} cats={cats} isCur={isCur} today={today}/>}
       {tab==="deadlines"&&<DeadlineManager tasks={tasks} year={year} mi={mi} holidays={holidays} getSt={getSt} patch={patch} cats={cats} team={team}/>}
     </div>
   );
@@ -919,6 +1000,12 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
             <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
               <input style={{...S.inp,flex:1,minWidth:180,padding:"7px 12px"}} placeholder="Search tasks…" value={filter} onChange={e=>setFilter(e.target.value)}/>
               <button style={{...S.addBtn,height:36,flexShrink:0}} onClick={()=>setEditTask(false)}>+ Add Task</button>
+              <button style={{padding:"6px 14px",borderRadius:6,border:"1px solid #fde68a",background:"#fef9c3",color:"#92400e",fontSize:13,fontWeight:600,cursor:"pointer",height:36,flexShrink:0}}
+                onClick={async()=>{
+                  if(!window.confirm("This will replace ALL tasks with the 50 default MarineTeknik tasks and reset categories. Your status history is preserved.\n\nContinue?")) return;
+                  await setTasks(DEFAULT_TASKS);
+                  await setCats(DEFAULT_CATS);
+                }}>↺ Load Default Tasks</button>
             </div>
             {visible.length===0&&<div style={{textAlign:"center",padding:"30px",color:"#94a3b8"}}>No tasks yet. Click "+ Add Task" to get started.</div>}
             {visible.length>0&&(
@@ -1055,21 +1142,7 @@ function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHoli
 
         {/* ── HOLIDAYS TAB ── */}
         {tab==="holidays"&&(
-          <SCard title="🎌 Holidays" sub="Holidays cause deadlines to auto-skip forward. Saved to Supabase.">
-            {MONTHS.map((m,i)=>{
-              const hs=((holidays||{})[`${year}-${i}`])||[];
-              return(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"7px 0",borderBottom:"1px solid #f1f5f9"}}>
-                  <div style={{width:80,fontSize:13,fontWeight:600,color:"#374151"}}>{m.slice(0,3)}</div>
-                  <div style={{flex:1,display:"flex",gap:6,flexWrap:"wrap"}}>
-                    {hs.length===0?<span style={{fontSize:12,color:"#cbd5e1"}}>—</span>:hs.map((h,j)=><span key={j} style={{padding:"2px 8px",borderRadius:4,background:"#fef9c3",color:"#92400e",fontSize:11,fontWeight:700,border:"1px solid #fde047"}}>{ord(h.day)}: {h.name}</span>)}
-                  </div>
-                  <button style={{...S.smBtn,fontSize:11}} onClick={()=>setHolOpen(true)&&setHolMonth(i)}>Edit</button>
-                </div>
-              );
-            })}
-            <div style={{marginTop:12,fontSize:12,color:"#64748b"}}>Use the 🎌 button in the top bar to edit holidays for the current month.</div>
-          </SCard>
+          <HolidaysSettingsPanel year={year} holidays={holidays} setHolidays={setHolidays}/>
         )}
       </div>
     </div>
@@ -1169,6 +1242,266 @@ function Overlay({children,onClose}){
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()}>{children}</div>
     </div>
+  );
+}
+
+// ── MANAGER VIEW ─────────────────────────────────────────────────────────────
+function ManagerView({tasks,statuses,year,mi,getSt,effD,team,cats,isCur,today}){
+  const [selMember,setSelMember]=useState("All");
+
+  // For each team member, get their tasks and status for this month
+  const memberData=team.map(m=>{
+    const myTasks=tasks.filter(t=>t.owner===m.name);
+    return{
+      ...m,
+      tasks:myTasks.map(t=>{
+        const st=getSt(t.id);
+        const eff=effD(t);
+        const isOver=isCur&&st.ownerStatus!=="DONE"&&st.ownerStatus!=="N/A"&&today.getDate()>eff;
+        return{...t,st,eff,isOver};
+      }),
+    };
+  }).filter(m=>m.tasks.length>0);
+
+  // Month by month table — each row = employee, each col = month
+  const yearRows=team.map(m=>{
+    const myTasks=tasks.filter(t=>t.owner===m.name);
+    if(!myTasks.length) return null;
+    const months=MONTHS.map((_,i)=>{
+      const tot=myTasks.length;
+      const dn=myTasks.filter(t=>statuses[`${year}-${i}-${t.id}`]?.owner_status==="DONE").length;
+      const na=myTasks.filter(t=>statuses[`${year}-${i}-${t.id}`]?.owner_status==="N/A").length;
+      const eff=tot-na;
+      return{done:dn,total:eff,pct:eff>0?Math.round(dn/eff*100):0};
+    });
+    return{...m,months};
+  }).filter(Boolean);
+
+  const filtered=selMember==="All"?memberData:memberData.filter(m=>m.name===selMember);
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+      {/* ── SUMMARY CARDS ── */}
+      <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+        {memberData.map(m=>{
+          const done=m.tasks.filter(t=>t.st.ownerStatus==="DONE").length;
+          const overdue=m.tasks.filter(t=>t.isOver).length;
+          const pend=m.tasks.filter(t=>t.st.ownerStatus==="PENDING").length;
+          const pct=m.tasks.length>0?Math.round(done/m.tasks.length*100):0;
+          return(
+            <div key={m.name} onClick={()=>setSelMember(s=>s===m.name?"All":m.name)}
+              style={{flex:"1 1 180px",background:"#fff",borderRadius:12,padding:"16px",boxShadow:"0 1px 4px rgba(0,0,0,.06)",cursor:"pointer",border:selMember===m.name?"2px solid #3b82f6":"2px solid transparent",transition:"border .15s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{m.name.split(" ").slice(0,2).join(" ")}</div>
+                  <div style={{fontSize:11,color:"#64748b"}}>{m.tasks.length} tasks</div>
+                </div>
+              </div>
+              <div style={{height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden",marginBottom:6}}>
+                <div style={{height:"100%",borderRadius:3,background:pct===100?"#10b981":m.color,width:`${pct}%`,transition:"width .4s"}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
+                <span style={{color:"#10b981",fontWeight:700}}>{done} done</span>
+                {overdue>0&&<span style={{color:"#dc2626",fontWeight:700}}>⚠ {overdue} overdue</span>}
+                {pend>0&&<span style={{color:"#f59e0b",fontWeight:700}}>{pend} pending</span>}
+                <span style={{color:"#64748b"}}>{pct}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── TASK DETAIL TABLE ── */}
+      {filtered.map(m=>{
+        const done=m.tasks.filter(t=>t.st.ownerStatus==="DONE").length;
+        return(
+          <div key={m.name} style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
+              <div style={{fontWeight:700,fontSize:15,color:"#1e293b",flex:1}}>{m.name}</div>
+              <div style={{fontSize:12,color:"#64748b",fontWeight:600}}>{done}/{m.tasks.length} complete — {MONTHS[mi].slice(0,3)} {year}</div>
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead>
+                  <tr style={{background:"#f8fafc"}}>
+                    <th style={{padding:"8px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0"}}>Task</th>
+                    <th style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0"}}>Category</th>
+                    <th style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0"}}>Due</th>
+                    <th style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0"}}>Owner</th>
+                    <th style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0"}}>Reviewer</th>
+                    <th style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0"}}>Completed</th>
+                    <th style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0"}}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.tasks.map((t,idx)=>{
+                    const isDone=t.st.ownerStatus==="DONE";
+                    const isPend=t.st.ownerStatus==="PENDING";
+                    const isNA=t.st.ownerStatus==="N/A";
+                    const rowBg=isDone?"#f0fdf4":t.isOver?"#fef2f2":isPend?"#fffbeb":"#fff";
+                    const statusColor=isDone?"#10b981":t.isOver?"#dc2626":isPend?"#f59e0b":isNA?"#94a3b8":"#cbd5e1";
+                    const statusLabel=isDone?"✓ Done":t.isOver?"⚠ Overdue":isPend?"⏳ Pending":isNA?"N/A":"—";
+                    const effDate=new Date(year,mi,t.eff);
+                    const dow=DOWS[effDate.getDay()];
+                    return(
+                      <tr key={t.id} style={{background:rowBg,borderBottom:"1px solid #f1f5f9"}}>
+                        <td style={{padding:"10px 16px",fontSize:13,fontWeight:500,color:isDone?"#94a3b8":"#1e293b",textDecoration:isDone?"line-through":"none",maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</td>
+                        <td style={{padding:"10px 12px",textAlign:"center"}}>
+                          <span style={{padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:700,color:"#fff",background:cc(t.category,cats),whiteSpace:"nowrap"}}>{t.category}</span>
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"center",fontSize:12,fontWeight:600,color:t.isOver?"#dc2626":"#374151",whiteSpace:"nowrap"}}>{dow} {ord(t.eff)}</td>
+                        <td style={{padding:"10px 12px",textAlign:"center"}}>
+                          <span style={{padding:"3px 8px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:statusColor,whiteSpace:"nowrap"}}>{statusLabel}</span>
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"center"}}>
+                          {t.st.reviewerStatus?<span style={{padding:"3px 8px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:t.st.reviewerStatus==="DONE"?"#10b981":t.st.reviewerStatus==="PENDING"?"#f59e0b":"#94a3b8",whiteSpace:"nowrap"}}>{t.st.reviewerStatus==="DONE"?"✓ Done":t.st.reviewerStatus==="PENDING"?"⏳ Pending":"N/A"}</span>:<span style={{color:"#cbd5e1",fontSize:11}}>—</span>}
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"center",fontSize:11,color:"#64748b"}}>{t.st.completionDate||"—"}</td>
+                        <td style={{padding:"10px 12px",fontSize:11,color:"#64748b",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.st.notes||"—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── YEAR HISTORY TABLE ── */}
+      <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+        <div style={{padding:"14px 20px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0",fontWeight:700,fontSize:14,color:"#1e293b"}}>
+          📅 FY{year} — Month-by-Month Progress per Employee
+        </div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:"#0f172a"}}>
+                <th style={{padding:"10px 16px",textAlign:"left",color:"rgba(255,255,255,0.7)",fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",minWidth:160}}>Employee</th>
+                {MONTHS.map((m,i)=>(
+                  <th key={i} style={{padding:"10px 8px",textAlign:"center",color:i===mi?"#fbbf24":"rgba(255,255,255,0.7)",fontSize:11,fontWeight:i===mi?700:600,textTransform:"uppercase",letterSpacing:"0.5px",minWidth:52,background:i===mi?"rgba(255,255,255,0.08)":"transparent"}}>{m.slice(0,3)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {yearRows.map((m,ri)=>(
+                <tr key={m.name} style={{borderBottom:"1px solid #f1f5f9",background:ri%2===0?"#fff":"#f8fafc"}}>
+                  <td style={{padding:"10px 16px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
+                      <span style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{m.name.split(" ").slice(0,2).join(" ")}</span>
+                    </div>
+                  </td>
+                  {m.months.map((mo,i)=>(
+                    <td key={i} style={{padding:"10px 8px",textAlign:"center",background:i===mi?"rgba(59,130,246,0.04)":"transparent"}}>
+                      {mo.total===0
+                        ?<span style={{color:"#cbd5e1",fontSize:11}}>—</span>
+                        :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                          <span style={{fontSize:12,fontWeight:700,color:mo.pct===100?"#10b981":mo.pct>0?"#3b82f6":"#94a3b8"}}>{mo.pct}%</span>
+                          <span style={{fontSize:10,color:"#94a3b8"}}>{mo.done}/{mo.total}</span>
+                        </div>
+                      }
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── HOLIDAYS SETTINGS PANEL ───────────────────────────────────────────────────
+function HolidaysSettingsPanel({year,holidays,setHolidays}){
+  const [editingMonth,setEditingMonth]=useState(null);
+  const [nd,setNd]=useState("");
+  const [nn,setNn]=useState("");
+  const common={0:[{day:1,name:"New Year's Day"}],1:[{day:17,name:"Presidents Day"}],4:[{day:26,name:"Memorial Day"}],6:[{day:4,name:"Independence Day"}],8:[{day:1,name:"Labor Day"}],10:[{day:11,name:"Veterans Day"},{day:27,name:"Thanksgiving"}],11:[{day:25,name:"Christmas Day"}]};
+
+  const addHol=()=>{
+    const d=parseInt(nd);
+    if(!d||d<1||d>31||!nn.trim()) return;
+    const key=`${year}-${editingMonth}`;
+    const list=[...((holidays||{})[key]||[])];
+    if(list.some(h=>h.day===d)) return;
+    const updated={...(holidays||{}),[key]:[...list,{day:d,name:nn.trim()}].sort((a,b)=>a.day-b.day)};
+    setHolidays(updated);
+    setNd("");setNn("");
+  };
+
+  const removeHol=(mi,idx)=>{
+    const key=`${year}-${mi}`;
+    const list=[...((holidays||{})[key]||[])];
+    list.splice(idx,1);
+    setHolidays({...(holidays||{}),[key]:list});
+  };
+
+  return(
+    <SCard title="🎌 Holidays" sub="Click any month to add or remove holidays. Deadlines auto-skip these days. Saved to Supabase instantly.">
+      {MONTHS.map((m,i)=>{
+        const key=`${year}-${i}`;
+        const hs=((holidays||{})[key])||[];
+        const isOpen=editingMonth===i;
+        const sugg=(common[i]||[]).filter(s=>!hs.some(h=>h.name===s.name));
+        return(
+          <div key={i} style={{borderRadius:8,marginBottom:6,border:isOpen?"2px solid #3b82f6":"1px solid #e2e8f0",overflow:"hidden"}}>
+            {/* Month header row */}
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:isOpen?"#eff6ff":"#f8fafc",cursor:"pointer"}} onClick={()=>setEditingMonth(isOpen?null:i)}>
+              <div style={{width:48,fontSize:13,fontWeight:700,color:isOpen?"#1d4ed8":"#374151"}}>{m.slice(0,3)}</div>
+              <div style={{flex:1,display:"flex",gap:6,flexWrap:"wrap"}}>
+                {hs.length===0
+                  ?<span style={{fontSize:12,color:"#cbd5e1"}}>No holidays — click to add</span>
+                  :hs.map((h,j)=>(
+                    <span key={j} style={{padding:"2px 8px",borderRadius:4,background:"#fef9c3",color:"#92400e",fontSize:11,fontWeight:700,border:"1px solid #fde047",display:"flex",alignItems:"center",gap:4}}>
+                      {ord(h.day)}: {h.name}
+                      {isOpen&&<span style={{cursor:"pointer",color:"#dc2626",fontWeight:900,marginLeft:2}} onClick={e=>{e.stopPropagation();removeHol(i,j);}}>×</span>}
+                    </span>
+                  ))
+                }
+              </div>
+              <span style={{fontSize:12,color:isOpen?"#3b82f6":"#94a3b8"}}>{isOpen?"▲":"▼"}</span>
+            </div>
+            {/* Expanded editor */}
+            {isOpen&&(
+              <div style={{padding:"14px 16px",background:"#fff",borderTop:"1px solid #e2e8f0"}}>
+                {sugg.length>0&&(
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:11,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Quick Add</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {sugg.map((s,si)=>(
+                        <button key={si} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:12,cursor:"pointer",color:"#374151"}}
+                          onClick={()=>{
+                            const key=`${year}-${i}`;
+                            const list=[...((holidays||{})[key]||[])];
+                            const updated={...(holidays||{}),[key]:[...list,s].sort((a,b)=>a.day-b.day)};
+                            setHolidays(updated);
+                          }}>+ {s.name} ({ord(s.day)})</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    <label style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.5px"}}>Day</label>
+                    <input type="number" min="1" max="31" style={{width:64,padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,textAlign:"center"}} placeholder="15" value={nd} onChange={e=>setNd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addHol()}/>
+                  </div>
+                  <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
+                    <label style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.5px"}}>Holiday Name</label>
+                    <input style={{padding:"7px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,width:"100%"}} placeholder="e.g. Company Outing" value={nn} onChange={e=>setNn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addHol()}/>
+                  </div>
+                  <button style={{padding:"7px 16px",borderRadius:6,border:"none",background:"#3b82f6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",height:36}} onClick={addHol}>+ Add</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </SCard>
   );
 }
 
