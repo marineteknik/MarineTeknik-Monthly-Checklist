@@ -30,33 +30,56 @@
 
 <!-- LOGIN -->
 <div id="login-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;font-family:'DM Sans',sans-serif;">
-  <div style="background:#1e293b;border-radius:16px;padding:40px;width:360px;max-width:90vw;box-shadow:0 24px 60px rgba(0,0,0,.4);text-align:center;">
-    <div style="font-size:36px;margin-bottom:12px;">⚓</div>
+  <div style="background:#1e293b;border-radius:16px;padding:40px;width:380px;max-width:90vw;box-shadow:0 24px 60px rgba(0,0,0,.4);text-align:center;">
+    <div style="font-size:40px;margin-bottom:14px;">⚓</div>
     <div style="font-size:20px;font-weight:800;color:#f8fafc;margin-bottom:4px;">MarineTeknik</div>
-    <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:28px;">Monthly Close Tracker</div>
+    <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Monthly Close Tracker</div>
+    <div style="font-size:11px;color:#475569;margin-bottom:28px;padding:8px 12px;background:#0f172a;border-radius:6px;">Team access only — enter the shared password to continue</div>
     <input id="pwd-input" type="password" placeholder="Enter password"
-      style="width:100%;padding:12px 16px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#f8fafc;font-size:15px;font-family:inherit;outline:none;margin-bottom:12px;text-align:center;"
+      style="width:100%;padding:12px 16px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#f8fafc;font-size:15px;font-family:inherit;outline:none;margin-bottom:12px;text-align:center;letter-spacing:2px;"
       onkeydown="if(event.key==='Enter')checkPwd()"/>
-    <button onclick="checkPwd()" style="width:100%;padding:12px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Sign In</button>
-    <div id="pwd-error" style="color:#f87171;font-size:13px;margin-top:12px;display:none;">Incorrect password. Try again.</div>
+    <button onclick="checkPwd()" id="sign-in-btn" style="width:100%;padding:12px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.15s;">Sign In</button>
+    <div id="pwd-error" style="color:#f87171;font-size:13px;margin-top:12px;display:none;">Incorrect password. Please try again.</div>
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid #1e293b;font-size:11px;color:#334155;">
+      MarineTeknik Finance · 2026
+    </div>
   </div>
 </div>
 <div id="root" style="display:none;"></div>
 <script>
-  if(sessionStorage.getItem('mt_auth')==='ok'){
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('root').style.display='block';
-  }
-  function checkPwd(){
-    var val=document.getElementById('pwd-input').value;
-    if(val==='Marineteknik@2026'){
-      sessionStorage.setItem('mt_auth','ok');
+  // Check auth — session valid for 8 hours
+  (function(){
+    var auth=sessionStorage.getItem('mt_auth');
+    var ts=parseInt(sessionStorage.getItem('mt_auth_ts')||'0');
+    var EIGHT_HRS=8*60*60*1000;
+    if(auth==='ok'&&(Date.now()-ts)<EIGHT_HRS){
       document.getElementById('login-screen').style.display='none';
       document.getElementById('root').style.display='block';
+    } else {
+      sessionStorage.removeItem('mt_auth');
+      sessionStorage.removeItem('mt_auth_ts');
+    }
+  })();
+  function checkPwd(){
+    var val=document.getElementById('pwd-input').value;
+    var btn=document.getElementById('sign-in-btn');
+    if(val==='Marineteknik@2026'){
+      sessionStorage.setItem('mt_auth','ok');
+      sessionStorage.setItem('mt_auth_ts',Date.now().toString());
+      btn.textContent='✓ Signed in…';
+      btn.style.background='#10b981';
+      setTimeout(function(){
+        document.getElementById('login-screen').style.display='none';
+        document.getElementById('root').style.display='block';
+      },400);
     } else {
       document.getElementById('pwd-error').style.display='block';
       document.getElementById('pwd-input').value='';
       document.getElementById('pwd-input').focus();
+      // Shake animation
+      var input=document.getElementById('pwd-input');
+      input.style.borderColor='#f87171';
+      setTimeout(function(){input.style.borderColor='#334155';},1500);
     }
   }
 </script>
@@ -436,6 +459,12 @@ function App(){
           <div className="live-dot" style={{background:syncing?"#f59e0b":"#10b981"}}/>
           <span style={{fontSize:11,fontWeight:700,color:syncing?"#f59e0b":"#10b981"}}>{syncLabel}</span>
         </div>
+        <button
+          onClick={()=>{sessionStorage.removeItem('mt_auth');window.location.reload();}}
+          style={{padding:"5px 14px",borderRadius:6,border:"1px solid rgba(255,255,255,0.2)",background:"transparent",color:"rgba(255,255,255,0.6)",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}
+          title="Sign out">
+          ⎋ Sign Out
+        </button>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
           {mHols.length>0&&<button style={S.holPill} onClick={()=>setHolOpen(true)}>🎌 {mHols.length} holiday{mHols.length>1?"s":""}</button>}
           <div style={{display:"flex",alignItems:"center",gap:5}}>
@@ -800,10 +829,8 @@ function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,is
     const mt=tasks.filter(t=>t.owner===m.name);if(!mt.length)return null;
     const months=MONTHS.map((_,i)=>{
       const tot=mt.length;
-      const dn=mt.filter(t=>statuses[`${year}-${i}-${t.id}`]?.owner_status==="DONE").length;
-      const na=mt.filter(t=>statuses[`${year}-${i}-${t.id}`]?.owner_status==="N/A").length;
-      const eff=tot-na;
-      return{done:dn,total:eff,pct:eff>0?Math.round(dn/eff*100):0};
+      const dn=mt.filter(t=>{const s=statuses[`${year}-${i}-${t.id}`]?.owner_status;return s==="DONE"||s==="N/A";}).length;
+      return{done:dn,total:tot,pct:tot>0?Math.round(dn/tot*100):0};
     });
     return{...m,months};
   }).filter(Boolean);
@@ -814,7 +841,7 @@ function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,is
       {/* Summary cards */}
       <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
         {memberData.map(m=>{
-          const done=m.tasks.filter(t=>t.st.ownerStatus==="DONE").length;
+          const done=m.tasks.filter(t=>isComplete(t.st)).length;
           const overdue=m.tasks.filter(t=>t.isOver).length;
           const pend=m.tasks.filter(t=>t.st.ownerStatus==="PENDING").length;
           const pct=m.tasks.length>0?Math.round(done/m.tasks.length*100):0;
@@ -864,12 +891,12 @@ function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,is
                 <tbody>
                   {m.tasks.map(t=>{
                     const isDone  =isComplete(t.st);
+                    const isNA    =t.st.ownerStatus==="N/A";
                     const wasLateM=isLate(t.st,t.eff,dlYear,dlMi);
                     const isPend  =t.st.ownerStatus==="PENDING";
-                    const isNA    =t.st.ownerStatus==="N/A";
                     const rowBg=isDone&&wasLateM?"#fff7ed":isDone?"#f0fdf4":t.isOver?"#fef2f2":isPend?"#fffbeb":"#fff";
-                    const stColor=isDone?(wasLateM?"#ea580c":"#10b981"):t.isOver?"#dc2626":isPend?"#f59e0b":isNA?"#94a3b8":"#cbd5e1";
-                    const stLabel=isDone?(wasLateM?"🕐 Late":"✓ Done"):t.isOver?"⚠ Overdue":isPend?"⏳ Pending":isNA?"N/A":"—";
+                    const stColor=isDone&&wasLateM?"#ea580c":isDone&&isNA?"#0369a1":isDone?"#10b981":t.isOver?"#dc2626":isPend?"#f59e0b":"#cbd5e1";
+                    const stLabel=isDone&&wasLateM?"🕐 Late":isDone&&isNA?"N/A ✓":isDone?"✓ Done":t.isOver?"⚠ Overdue":isPend?"⏳ Pending":isNA?"N/A":"—";
                     const effDate=new Date(dlYear,dlMi,t.eff);
                     return(
                       <tr key={t.id} style={{background:rowBg,borderBottom:"1px solid #f1f5f9"}}>
