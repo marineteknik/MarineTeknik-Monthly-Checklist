@@ -47,6 +47,7 @@
 </div>
 <div id="root" style="display:none;"></div>
 <script>
+  // Check auth — session valid for 8 hours
   (function(){
     var auth=sessionStorage.getItem('mt_auth');
     var ts=parseInt(sessionStorage.getItem('mt_auth_ts')||'0');
@@ -75,6 +76,7 @@
       document.getElementById('pwd-error').style.display='block';
       document.getElementById('pwd-input').value='';
       document.getElementById('pwd-input').focus();
+      // Shake animation
       var input=document.getElementById('pwd-input');
       input.style.borderColor='#f87171';
       setTimeout(function(){input.style.borderColor='#334155';},1500);
@@ -84,86 +86,1460 @@
 
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback} = React;
-const SUPABASE_URL='https://xmvzeitjbobcfxmbpenh.supabase.co';
-const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtdnplaXRqYm9iY2Z4bWJwZW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODkyNzgsImV4cCI6MjA4OTg2NTI3OH0.CKPIsjz0-_C31ixodPHVLfDdaRHQHdc-7-10Pk4SLzU';
-const db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
-const DOWS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const DEFAULT_TEAM=[{name:"Agnieszka Kubiak Ernandes",initials:"AKE",color:"#2D6A4F"},{name:"Helena Kivisto-Vila",initials:"HKV",color:"#1D4E89"},{name:"Glenn Davis",initials:"GD",color:"#7B2D8B"},{name:"Emerson Bam",initials:"EB",color:"#C0392B"},{name:"Cesar Gonzalez",initials:"CG",color:"#E67E22"},{name:"Ewelina Perfilow",initials:"EP",color:"#16A085"}];
-const DEFAULT_CATS=[{name:"1. Cash & Banking",color:"#1e40af"},{name:"2. Credit Cards",color:"#7c3aed"},{name:"3. Accounts Payable",color:"#b45309"},{name:"4. Accounts Receivable",color:"#0891b2"},{name:"5. Cut-Off & Coordination",color:"#15803d"},{name:"6. Fixed Assets & Journals",color:"#0e7490"},{name:"7. Accruals & Liabilities",color:"#0f766e"},{name:"8. Inventory & Scrubs",color:"#be185d"},{name:"9. WIP & COGS",color:"#c2410c"},{name:"10. BC Period Control",color:"#374151"},{name:"11. Financial Reporting",color:"#065f46"}];
 
-const ord=n=>(!n&&n!==0)?"—":n+(n===1?"st":n===2?"nd":n===3?"rd":"th");
-function localDateStr(d){const dt=d||new Date();const y=dt.getFullYear();const m=String(dt.getMonth()+1).padStart(2,'0');const day=String(dt.getDate()).padStart(2,'0');return `${y}-${m}-${day}`;}
-const isComplete=st=>(st.ownerStatus==="DONE"||st.ownerStatus==="N/A")&&(st.reviewerStatus==="DONE"||st.reviewerStatus==="N/A"||!st.reviewerStatus);
-function isLate(st,effDay,dlYear,dlMi){if(!st.completionDate)return false;const parts=st.completionDate.split('-');if(parts.length!==3)return false;const compVal=parseInt(parts[0])*10000+parseInt(parts[1])*100+parseInt(parts[2]);const dlMiNum=dlMi+1;const deadVal=dlYear*10000+dlMiNum*100+effDay;return compVal>deadVal;}
-const cc=(cat,cats)=>(cats||[]).find(c=>c.name===cat)?.color||"#374151";
-const ini=(nm,team)=>(team||[]).find(t=>t.name===nm)?.initials||(nm||"?").split(" ").map(x=>x[0]).join("").slice(0,3).toUpperCase();
-const tcol=(nm,team)=>(team||[]).find(t=>t.name===nm)?.color||"#64748b";
-function calcEffDay(baseDay,adjDay,year,mi,holidays){let day=adjDay!=null?adjDay:baseDay;const hols=((holidays||{})[`${year}-${mi}`]||[]).map(h=>h.day);let g=0;while(g++<20){const dow=new Date(year,mi,day).getDay();if(dow===0||dow===6||hols.includes(day))day++;else break;}return day;}
+// ── SUPABASE ──────────────────────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://xmvzeitjbobcfxmbpenh.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtdnplaXRqYm9iY2Z4bWJwZW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODkyNzgsImV4cCI6MjA4OTg2NTI3OH0.CKPIsjz0-_C31ixodPHVLfDdaRHQHdc-7-10Pk4SLzU';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function sbLoad(){const {data,error}=await db.from('mt_config').select('*');if(error){console.error(error);return null;}const out={tasks:[],team:[],cats:[],holidays:{},archived:[]};(data||[]).forEach(r=>{try{if(r.key==='tasks')out.tasks=JSON.parse(r.value);if(r.key==='team')out.team=JSON.parse(r.value);if(r.key==='cats')out.cats=JSON.parse(r.value);if(r.key==='holidays')out.holidays=JSON.parse(r.value);if(r.key==='archived')out.archived=JSON.parse(r.value);}catch(e){}});return out;}
-async function sbSave(key,value){await db.from('mt_config').upsert({key,value:JSON.stringify(value),updated_at:new Date().toISOString()},{onConflict:'key'});}
-async function sbLoadAllStatuses(year){const {data,error}=await db.from('mt_statuses').select('*').eq('year',year);if(error){console.error(error);return{};}const out={};(data||[]).forEach(r=>{out[`${r.year}-${r.month}-${r.task_id}`]=r;});return out;}
-async function sbPatchStatus(year,mi,taskId,patch){const {data:ex}=await db.from('mt_statuses').select('id').eq('year',year).eq('month',mi).eq('task_id',taskId).maybeSingle();const payload={year,month:mi,task_id:taskId,updated_at:new Date().toISOString(),...patch};if(ex){await db.from('mt_statuses').update(payload).eq('id',ex.id);}else{await db.from('mt_statuses').insert(payload);}}
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DOWS   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
+const DEFAULT_TEAM = [
+  {name:"Agnieszka Kubiak Ernandes",initials:"AKE",color:"#2D6A4F"},
+  {name:"Helena Kivisto-Vila",      initials:"HKV",color:"#1D4E89"},
+  {name:"Glenn Davis",              initials:"GD", color:"#7B2D8B"},
+  {name:"Emerson Bam",              initials:"EB", color:"#C0392B"},
+  {name:"Cesar Gonzalez",           initials:"CG", color:"#E67E22"},
+  {name:"Ewelina Perfilow",         initials:"EP", color:"#16A085"},
+];
+
+const DEFAULT_CATS = [
+  {name:"1. Cash & Banking",          color:"#1e40af"},
+  {name:"2. Credit Cards",            color:"#7c3aed"},
+  {name:"3. Accounts Payable",        color:"#b45309"},
+  {name:"4. Accounts Receivable",     color:"#0891b2"},
+  {name:"5. Cut-Off & Coordination",  color:"#15803d"},
+  {name:"6. Fixed Assets & Journals", color:"#0e7490"},
+  {name:"7. Accruals & Liabilities",  color:"#0f766e"},
+  {name:"8. Inventory & Scrubs",      color:"#be185d"},
+  {name:"9. WIP & COGS",              color:"#c2410c"},
+  {name:"10. BC Period Control",      color:"#374151"},
+  {name:"11. Financial Reporting",    color:"#065f46"},
+];
+
+const DEFAULT_TASKS = [
+  {id:1,  name:"Bank Reconciliation – 7206",                            category:"1. Cash & Banking",          owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  {id:2,  name:"Bank Reconciliation – MMA 1397",                        category:"1. Cash & Banking",          owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  {id:3,  name:"Bank Reconciliation – Loan Statement (LOC)",            category:"1. Cash & Banking",          owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:1,  deadlineDay:5},
+  {id:6,  name:"Petty Cash Reconciliation – USD",                       category:"1. Cash & Banking",          owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:5},
+  {id:7,  name:"Petty Cash Reconciliation – EUR",                       category:"1. Cash & Banking",          owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:5},
+  {id:8,  name:"Petty Cash Reconciliation – PLN",                       category:"1. Cash & Banking",          owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:5},
+  {id:4,  name:"Credit Card – TravelBank/Elan Statement Reconciliation",category:"2. Credit Cards",            owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:3},
+  {id:5,  name:"Credit Card – Record Current Month Transactions",       category:"2. Credit Cards",            owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:12},
+  {id:9,  name:"All Credit Card Receipts Saved on OneDrive",            category:"2. Credit Cards",            owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:3,  deadlineDay:10},
+  {id:10, name:"AP Reconciliation – Excl. Labor & Outsourcing",         category:"3. Accounts Payable",        owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:12},
+  {id:23, name:"AP Reconciliation – 20101 Suppliers Only",              category:"3. Accounts Payable",        owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:3,  deadlineDay:15},
+  {id:24, name:"AP OPEX – Vendor Invoices & Expenses (Overhead)",       category:"3. Accounts Payable",        owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:12},
+  {id:25, name:"Record Supplier Invoices in Liabilities",               category:"3. Accounts Payable",        owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:15},
+  {id:11, name:"AR Reconciliation",                                     category:"4. Accounts Receivable",     owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:5,  deadlineDay:10},
+  {id:26, name:"Accrued Revenue – Record Assets",                       category:"4. Accounts Receivable",     owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:13, deadlineDay:15},
+  {id:12, name:"Cut-Off Email – Cash Advance Settlement (CC: Quality)", category:"5. Cut-Off & Coordination",  owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:3,  deadlineDay:4},
+  {id:13, name:"Record Cash Advance Settlement in BC",                  category:"5. Cut-Off & Coordination",  owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:1,  deadlineDay:12},
+  {id:14, name:"Cut-Off Email – Expenses & Deductions (CC: Quality)",   category:"5. Cut-Off & Coordination",  owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:3,  deadlineDay:4},
+  {id:15, name:"Record Expenses & Deductions in BC",                    category:"5. Cut-Off & Coordination",  owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:3,  deadlineDay:12},
+  {id:16, name:"Cut-Off Email – Labor Usage (CC: Quality)",             category:"5. Cut-Off & Coordination",  owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:12, deadlineDay:13},
+  {id:17, name:"Record Labor Usage in BC",                              category:"5. Cut-Off & Coordination",  owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:3,  deadlineDay:12},
+  {id:18, name:"Logistics PL – Cut-Off Usage Confirmation Email",       category:"5. Cut-Off & Coordination",  owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:12, deadlineDay:13},
+  {id:19, name:"Logistics US – Cut-Off Usage Confirmation Email",       category:"5. Cut-Off & Coordination",  owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:12, deadlineDay:13},
+  {id:21, name:"Fixed Assets – Record Depreciation",                    category:"6. Fixed Assets & Journals", owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  {id:22, name:"Journals – Run Monthly Recurring",                      category:"6. Fixed Assets & Journals", owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:1,  deadlineDay:5},
+  {id:27, name:"Tax – Accrue Taxes",                                    category:"7. Accruals & Liabilities",  owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:15, deadlineDay:17},
+  {id:28, name:"Accrued Expenses – Open Expenses",                      category:"7. Accruals & Liabilities",  owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:12},
+  {id:29, name:"Inventory – Prepaid Service, Materials & Supplies",     category:"8. Inventory & Scrubs",      owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:12, deadlineDay:17},
+  {id:30, name:"Inventory Scrub – 10350",                               category:"8. Inventory & Scrubs",      owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:17, deadlineDay:20},
+  {id:31, name:"Inventory Scrub – 10399",                               category:"8. Inventory & Scrubs",      owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:17, deadlineDay:20},
+  {id:32, name:"Technical Account Scrub – 20650",                       category:"8. Inventory & Scrubs",      owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:17, deadlineDay:20},
+  {id:33, name:"Accounts Scrub – All Excl. Cash, 10803 & 10809",        category:"8. Inventory & Scrubs",      owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:34, name:"Accounts Scrub – All Excl. AP/AR/CC",                   category:"8. Inventory & Scrubs",      owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:35, name:"Accounts Scrub – 3xxxx",                                category:"8. Inventory & Scrubs",      owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:36, name:"Accounts Scrub – 4xxxx",                                category:"8. Inventory & Scrubs",      owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:15, deadlineDay:17},
+  {id:37, name:"Accounts Scrub – 5xxxx",                                category:"8. Inventory & Scrubs",      owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:15, deadlineDay:17},
+  {id:38, name:"Accounts Scrub – 6xxxx",                                category:"8. Inventory & Scrubs",      owner:"Glenn Davis",               reviewer:"Glenn Davis",               startDay:5,  deadlineDay:17},
+  {id:39, name:"Accounts Scrub – 7xxxx",                                category:"8. Inventory & Scrubs",      owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:15, deadlineDay:17},
+  {id:40, name:"Accounts Scrub – 8xxxx",                                category:"8. Inventory & Scrubs",      owner:"Emerson Bam",               reviewer:"Emerson Bam",               startDay:15, deadlineDay:17},
+  {id:41, name:"Accounts Scrub – 9xxxx",                                category:"8. Inventory & Scrubs",      owner:"Ewelina Perfilow",          reviewer:"Ewelina Perfilow",          startDay:15, deadlineDay:17},
+  {id:42, name:"WIP – Projects % of Completion",                        category:"9. WIP & COGS",               owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:15, deadlineDay:17},
+  {id:43, name:"COGS – Check Expired/Obsolete Goods with Logistics",    category:"9. WIP & COGS",               owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:12, deadlineDay:12},
+  {id:20, name:"BC – Close Month for All Users (Excl. Finance)",        category:"10. BC Period Control",       owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:12, deadlineDay:13},
+  {id:44, name:"BC – Close Month for Finance Users",                    category:"10. BC Period Control",       owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:20},
+  {id:46, name:"BC – Open Month for All Users",                         category:"10. BC Period Control",       owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:25},
+  {id:47, name:"BC – Month-End Inventory Periods",                      category:"10. BC Period Control",       owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:12, deadlineDay:13},
+  {id:48, name:"BC – Open New Month G/L",                               category:"10. BC Period Control",       owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:25},
+  {id:49, name:"BC – Year-Open: Accounting Periods",                    category:"10. BC Period Control",       owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:20, deadlineDay:25},
+  {id:50, name:"BC – Year-Close: Accounting Periods",                   category:"10. BC Period Control",       owner:"Agnieszka Kubiak Ernandes", reviewer:"Agnieszka Kubiak Ernandes", startDay:1,  deadlineDay:31},
+  {id:45, name:"Generate Financial Statements",                         category:"11. Financial Reporting",     owner:"Cesar Gonzalez",            reviewer:"Cesar Gonzalez",            startDay:20, deadlineDay:25},
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const ord  = n => (!n&&n!==0)?"—":n+(n===1?"st":n===2?"nd":n===3?"rd":"th");
+
+// Get today's date as YYYY-MM-DD in LOCAL timezone (not UTC)
+function localDateStr(d){
+  const dt=d||new Date();
+  const y=dt.getFullYear();
+  const m=String(dt.getMonth()+1).padStart(2,'0');
+  const day=String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+// A task is "complete" if DONE or N/A (both owner AND reviewer)
+const isComplete = st => (st.ownerStatus==="DONE"||st.ownerStatus==="N/A") && (st.reviewerStatus==="DONE"||st.reviewerStatus==="N/A"||!st.reviewerStatus);
+
+// A task is "late" if it has a completion date that is after the effective deadline day
+// OR if today is past the deadline and it is still not complete
+function isLate(st, effDay, dlYear, dlMi){
+  // Compare purely as integers: YYYYMMDD — no Date objects, no timezone issues
+  if(!st.completionDate) return false;
+  // completionDate is stored as 'YYYY-MM-DD'
+  const parts = st.completionDate.split('-');
+  if(parts.length !== 3) return false;
+  const compVal = parseInt(parts[0])*10000 + parseInt(parts[1])*100 + parseInt(parts[2]);
+  // deadline: dlYear, dlMi is 0-indexed so month+1 for numeric comparison
+  const dlMiNum = dlMi + 1; // convert 0-indexed to 1-indexed
+  const deadVal = dlYear*10000 + dlMiNum*100 + effDay;
+  return compVal > deadVal;
+}
+const cc   = (cat,cats) => (cats||[]).find(c=>c.name===cat)?.color||"#374151";
+const ini  = (nm,team)  => (team||[]).find(t=>t.name===nm)?.initials||(nm||"?").split(" ").map(x=>x[0]).join("").slice(0,3).toUpperCase();
+const tcol = (nm,team)  => (team||[]).find(t=>t.name===nm)?.color||"#64748b";
+
+function calcEffDay(baseDay,adjDay,year,mi,holidays){
+  let day=adjDay!=null?adjDay:baseDay;
+  const hols=((holidays||{})[`${year}-${mi}`]||[]).map(h=>h.day);
+  let g=0;
+  while(g++<20){const dow=new Date(year,mi,day).getDay();if(dow===0||dow===6||hols.includes(day))day++;else break;}
+  return day;
+}
+function dayLabel(year,mi,day){if(!day)return"";const d=new Date(year,mi,day);return `${DOWS[d.getDay()]} ${MONTHS[mi].slice(0,3)} ${day}`;}
+
+// ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
+async function sbLoad(){
+  const {data,error}=await db.from('mt_config').select('*');
+  if(error){console.error(error);return null;}
+  const out={tasks:[],team:[],cats:[],holidays:{}};
+  (data||[]).forEach(r=>{
+    try{
+      if(r.key==='tasks')    out.tasks   =JSON.parse(r.value);
+      if(r.key==='team')     out.team    =JSON.parse(r.value);
+      if(r.key==='cats')     out.cats    =JSON.parse(r.value);
+      if(r.key==='holidays') out.holidays=JSON.parse(r.value);
+    }catch(e){}
+  });
+  return out;
+}
+async function sbSave(key,value){
+  await db.from('mt_config').upsert({key,value:JSON.stringify(value),updated_at:new Date().toISOString()},{onConflict:'key'});
+}
+async function sbLoadStatuses(year,mi){
+  const {data,error}=await db.from('mt_statuses').select('*').eq('year',year).eq('month',mi);
+  if(error){console.error(error);return{};}
+  const out={};
+  (data||[]).forEach(r=>{out[`${r.year}-${r.month}-${r.task_id}`]=r;});
+  return out;
+}
+async function sbLoadAllStatuses(year){
+  const {data,error}=await db.from('mt_statuses').select('*').eq('year',year);
+  if(error){console.error(error);return{};}
+  const out={};
+  (data||[]).forEach(r=>{out[`${r.year}-${r.month}-${r.task_id}`]=r;});
+  return out;
+}
+async function sbPatchStatus(year,mi,taskId,patch){
+  const {data:ex}=await db.from('mt_statuses').select('id').eq('year',year).eq('month',mi).eq('task_id',taskId).maybeSingle();
+  const payload={year,month:mi,task_id:taskId,updated_at:new Date().toISOString(),...patch};
+  if(ex){await db.from('mt_statuses').update(payload).eq('id',ex.id);}
+  else  {await db.from('mt_statuses').insert(payload);}
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
 function App(){
   const today=new Date();
-  const [ready,setReady]=useState(false);
-  const [syncing,setSyncing]=useState(false);
-  const [syncLabel,setSyncLabel]=useState('Connecting...');
-  const [year,setYear]=useState(today.getFullYear());
-  const [mi,setMi]=useState(today.getMonth());
-  const [tasks,setTasksRaw]=useState([]);
-  const [archived,setArchivedRaw]=useState([]);
-  const [statuses,setStatuses]=useState({});
-  const [team,setTeamRaw]=useState(DEFAULT_TEAM);
-  const [holidays,setHolRaw]=useState({});
-  const [cats,setCatsRaw]=useState(DEFAULT_CATS);
-  const [view,setView]=useState("checklist");
-  const [toast,setToast]=useState(null);
+  const [ready,      setReady]     =useState(false);
+  const [syncing,    setSyncing]   =useState(false);
+  const [syncLabel,  setSyncLabel] =useState('Connecting...');
+  const [year,       setYear]      =useState(today.getFullYear());
+  const [mi,         setMi]        =useState(today.getMonth());
+  const [tasks,      setTasksRaw]  =useState([]);
+  const [statuses,   setStatuses]  =useState({});
+  const [team,       setTeamRaw]   =useState(DEFAULT_TEAM);
+  const [holidays,   setHolRaw]    =useState({});
+  const [cats,       setCatsRaw]   =useState(DEFAULT_CATS);
+  const [view,       setView]      =useState("checklist");
+  const [fCat,       setFCat]      =useState("All");
+  const [fOwner,     setFOwner]    =useState("All");
+  const [statusTask, setStatusTask]=useState(null);
+  const [editTask,   setEditTask]  =useState(null);
+  const [holOpen,    setHolOpen]   =useState(false);
+  const [yrOpen,     setYrOpen]    =useState(false);
+  const [toast,      setToast]     =useState(null);
   const toastTimer=useRef(null);
+
   const showToast=(msg,type='info')=>{setToast({msg,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),3500);};
 
-  useEffect(()=>{(async()=>{setSyncing(true);try{const cfg=await sbLoad();if(cfg){if(cfg.tasks.length>0)setTasksRaw(cfg.tasks);else{setTasksRaw([]);await sbSave('tasks',[]);}if(cfg.team.length>0)setTeamRaw(cfg.team);else{setTeamRaw(DEFAULT_TEAM);await sbSave('team',DEFAULT_TEAM);}if(cfg.cats.length>0)setCatsRaw(cfg.cats);else{setCatsRaw(DEFAULT_CATS);await sbSave('cats',DEFAULT_CATS);}setHolRaw(cfg.holidays||{});setArchivedRaw(cfg.archived||[]);}const sts=await sbLoadAllStatuses(today.getFullYear());setStatuses(sts);setSyncLabel('Live');}catch(e){console.error(e);showToast('Connection error','error');}setSyncing(false);setReady(true);})();},[]); 
+  // ── Initial load ────────────────────────────────────────────────────────────
+  useEffect(()=>{
+    (async()=>{
+      setSyncing(true);
+      try{
+        const cfg=await sbLoad();
+        if(cfg){
+          if(cfg.tasks.length>0) setTasksRaw(cfg.tasks);
+          else { setTasksRaw(DEFAULT_TASKS); await sbSave('tasks',DEFAULT_TASKS); }
+          if(cfg.team.length>0)  setTeamRaw(cfg.team);
+          else { setTeamRaw(DEFAULT_TEAM); await sbSave('team',DEFAULT_TEAM); }
+          if(cfg.cats.length>0)  setCatsRaw(cfg.cats);
+          else { setCatsRaw(DEFAULT_CATS); await sbSave('cats',DEFAULT_CATS); }
+          setHolRaw(cfg.holidays||{});
+        }
+        const sts=await sbLoadAllStatuses(today.getFullYear());
+        setStatuses(sts);
+        setSyncLabel('Live');
+      }catch(e){
+        console.error(e);
+        showToast('Connection error — check Supabase config','error');
+      }
+      setSyncing(false);
+      setReady(true);
+    })();
+  },[]);
 
-  useEffect(()=>{if(!ready)return;(async()=>{setSyncing(true);setSyncLabel('Loading...');const sts=await sbLoadAllStatuses(year);setStatuses(sts);setSyncing(false);setSyncLabel('Live');})();},[ year,ready]);
+  // ── Reload statuses when month changes ──────────────────────────────────────
+  useEffect(()=>{
+    if(!ready)return;
+    (async()=>{
+      setSyncing(true);setSyncLabel('Loading...');
+      // Load full year so all 12 months show correct progress in dashboard
+      const sts=await sbLoadAllStatuses(year);
+      setStatuses(sts);
+      setSyncing(false);setSyncLabel('Live');
+    })();
+  },[year,ready]);
 
-  useEffect(()=>{if(!ready)return;const ch1=db.channel('st').on('postgres_changes',{event:'*',schema:'public',table:'mt_statuses'},(p)=>{const r=p.new||p.old;if(!r||r.year!==year)return;const k=`${r.year}-${r.month}-${r.task_id}`;if(p.eventType==='DELETE')setStatuses(prev=>{const n={...prev};delete n[k];return n;});else setStatuses(prev=>({...prev,[k]:r}));setSyncLabel('Live ✓');}).subscribe();const ch2=db.channel('cfg').on('postgres_changes',{event:'*',schema:'public',table:'mt_config'},(p)=>{const r=p.new;if(!r)return;try{if(r.key==='tasks')setTasksRaw(JSON.parse(r.value));if(r.key==='team')setTeamRaw(JSON.parse(r.value));if(r.key==='cats')setCatsRaw(JSON.parse(r.value));if(r.key==='holidays')setHolRaw(JSON.parse(r.value));if(r.key==='archived')setArchivedRaw(JSON.parse(r.value));}catch(e){}setSyncLabel('Live ✓');}).subscribe();return()=>{db.removeChannel(ch1);db.removeChannel(ch2);};},[ year,mi,ready]);
+  // ── Realtime subscriptions ──────────────────────────────────────────────────
+  useEffect(()=>{
+    if(!ready)return;
+    const ch1=db.channel('st').on('postgres_changes',{event:'*',schema:'public',table:'mt_statuses'},(p)=>{
+      const r=p.new||p.old;
+      if(!r||r.year!==year)return;  // accept all months for this year
+      const k=`${r.year}-${r.month}-${r.task_id}`;
+      if(p.eventType==='DELETE') setStatuses(prev=>{const n={...prev};delete n[k];return n;});
+      else setStatuses(prev=>({...prev,[k]:r}));
+      setSyncLabel('Live ✓');
+    }).subscribe();
+    const ch2=db.channel('cfg').on('postgres_changes',{event:'*',schema:'public',table:'mt_config'},(p)=>{
+      const r=p.new;if(!r)return;
+      try{
+        if(r.key==='tasks')    setTasksRaw(JSON.parse(r.value));
+        if(r.key==='team')     setTeamRaw(JSON.parse(r.value));
+        if(r.key==='cats')     setCatsRaw(JSON.parse(r.value));
+        if(r.key==='holidays') setHolRaw(JSON.parse(r.value));
+      }catch(e){}
+      setSyncLabel('Live ✓');
+    }).subscribe();
+    return()=>{db.removeChannel(ch1);db.removeChannel(ch2);};
+  },[year,mi,ready]);
 
+  // ── Setters that also save to Supabase ──────────────────────────────────────
   const setTasks=useCallback(async(v)=>{const n=typeof v==='function'?v(tasks):v;setTasksRaw(n);await sbSave('tasks',n);},[tasks]);
-  const setArchived=useCallback(async(v)=>{const n=typeof v==='function'?v(archived):v;setArchivedRaw(n);await sbSave('archived',n);},[archived]);
-  const setTeam=useCallback(async(v)=>{setTeamRaw(v);await sbSave('team',v);},[]);
-  const setCats=useCallback(async(v)=>{setCatsRaw(v);await sbSave('cats',v);},[]);
+  const setTeam =useCallback(async(v)=>{setTeamRaw(v);await sbSave('team',v);},[]);
+  const setCats =useCallback(async(v)=>{setCatsRaw(v);await sbSave('cats',v);},[]);
   const setHolidays=useCallback(async(v)=>{setHolRaw(v);await sbSave('holidays',v);},[]);
 
+  // ── Status helpers ───────────────────────────────────────────────────────────
   const sKey=(tid)=>`${year}-${mi}-${tid}`;
-  const getSt=(tid)=>{const r=statuses[sKey(tid)]||{};return{ownerStatus:r.owner_status||'',reviewerStatus:r.reviewer_status||'',completionDate:r.completion_date||'',adjustedDeadline:r.adjusted_deadline??null,notes:r.notes||''};};
-  const patch=useCallback(async(tid,p)=>{const k=sKey(tid);const ex=statuses[k]||{year,month:mi,task_id:tid};const merged={...ex};if('ownerStatus'in p)merged.owner_status=p.ownerStatus;if('reviewerStatus'in p)merged.reviewer_status=p.reviewerStatus;if('completionDate'in p)merged.completion_date=p.completionDate;if('adjustedDeadline'in p)merged.adjusted_deadline=p.adjustedDeadline;if('notes'in p)merged.notes=p.notes;setStatuses(prev=>({...prev,[k]:merged}));const dbP={};if('ownerStatus'in p)dbP.owner_status=p.ownerStatus;if('reviewerStatus'in p)dbP.reviewer_status=p.reviewerStatus;if('completionDate'in p)dbP.completion_date=p.completionDate;if('adjustedDeadline'in p)dbP.adjusted_deadline=p.adjustedDeadline;if('notes'in p)dbP.notes=p.notes;await sbPatchStatus(year,mi,tid,dbP);},[statuses,year,mi]);
+  const getSt=(tid)=>{
+    const r=statuses[sKey(tid)]||{};
+    return{ownerStatus:r.owner_status||'',reviewerStatus:r.reviewer_status||'',completionDate:r.completion_date||'',adjustedDeadline:r.adjusted_deadline??null,notes:r.notes||''};
+  };
+  const patch=useCallback(async(tid,p)=>{
+    const k=sKey(tid);
+    const ex=statuses[k]||{year,month:mi,task_id:tid};
+    const merged={...ex};
+    if('ownerStatus'     in p) merged.owner_status      =p.ownerStatus;
+    if('reviewerStatus'  in p) merged.reviewer_status   =p.reviewerStatus;
+    if('completionDate'  in p) merged.completion_date   =p.completionDate;
+    if('adjustedDeadline'in p) merged.adjusted_deadline =p.adjustedDeadline;
+    if('notes'           in p) merged.notes             =p.notes;
+    setStatuses(prev=>({...prev,[k]:merged}));
+    const dbP={};
+    if('ownerStatus'     in p) dbP.owner_status      =p.ownerStatus;
+    if('reviewerStatus'  in p) dbP.reviewer_status   =p.reviewerStatus;
+    if('completionDate'  in p) dbP.completion_date   =p.completionDate;
+    if('adjustedDeadline'in p) dbP.adjusted_deadline =p.adjustedDeadline;
+    if('notes'           in p) dbP.notes             =p.notes;
+    await sbPatchStatus(year,mi,tid,dbP);
+  },[statuses,year,mi]);
 
-  const dlMi=mi===11?0:mi+1;
-  const dlYear=mi===11?year+1:year;
-  const isCur=today.getFullYear()===dlYear&&today.getMonth()===dlMi;
-  const effD=task=>calcEffDay(task.deadlineDay,getSt(task.id).adjustedDeadline,dlYear,dlMi,holidays);
-  const navMon=dir=>{if(dir===-1&&mi===0){setMi(11);setYear(y=>y-1);}else if(dir===1&&mi===11){setMi(0);setYear(y=>y+1);}else setMi(m=>m+dir);};
-  const archiveTask=async id=>{if(!window.confirm("Archive this task? It will be hidden but history is preserved."))return;await setArchived([...archived,id]);showToast('Task archived ✓');};
-  const restoreTask=async id=>{await setArchived(archived.filter(x=>x!==id));showToast('Task restored ✓');};
+  // ── Deadline month (deadlines fall in NEXT month after closing) ──────────────
+  const dlMi   = mi===11 ? 0 : mi+1;
+  const dlYear = mi===11 ? year+1 : year;
+  const isCur  = today.getFullYear()===dlYear && today.getMonth()===dlMi;
+  const effD   = task=>calcEffDay(task.deadlineDay,getSt(task.id).adjustedDeadline,dlYear,dlMi,holidays);
 
-  const catNames=[...new Set([...cats.map(c=>c.name),...tasks.filter(t=>!archived.includes(t.id)).map(t=>t.category)])];
-  const filtered=tasks.filter(t=>!archived.includes(t.id));
-  const done=filtered.filter(t=>{const s=getSt(t.id);return isComplete(s);}).length;
-  const pct=filtered.length>0?Math.round(done/filtered.length*100):0;
+  // ── Month nav ────────────────────────────────────────────────────────────────
+  const navMon=dir=>{
+    if(dir===-1&&mi===0){setMi(11);setYear(y=>y-1);}
+    else if(dir===1&&mi===11){setMi(0);setYear(y=>y+1);}
+    else setMi(m=>m+dir);
+  };
+
+  // ── Task CRUD ─────────────────────────────────────────────────────────────────
+  const saveTask=async t=>{
+    const next=!t.id?[...tasks,{...t,id:Date.now()}]:tasks.map(x=>x.id===t.id?t:x);
+    await setTasks(next);setEditTask(null);
+    showToast(t.id?'Task updated ✓':'Task added ✓','success');
+  };
+  const deleteTask=async id=>{
+    if(!window.confirm("Delete this task?"))return;
+    await setTasks(tasks.filter(x=>x.id!==id));
+    showToast('Task deleted');
+  };
+
+  // ── Excel export ─────────────────────────────────────────────────────────────
+  const doExport=()=>{
+    const wb=XLSX.utils.book_new();
+    const mName=MONTHS[mi];
+    const hdrs=["#","Task","Category","Owner","Reviewer","Base Deadline","Effective Deadline","Owner Status","Reviewer Status","Completion Date","Notes"];
+    const rows=tasks.map((t,i)=>{
+      const st=getSt(t.id);const eff=effD(t);
+      return[i+1,t.name,t.category,t.owner,t.reviewer,ord(t.deadlineDay),`${DOWS[new Date(dlYear,dlMi,eff).getDay()]} ${ord(eff)} ${MONTHS[dlMi]}`,st.ownerStatus||'Not Started',st.reviewerStatus||'Not Started',st.completionDate||'',st.notes||''];
+    });
+    const ws=XLSX.utils.aoa_to_sheet([[`MarineTeknik Monthly Close — ${mName} ${year} (Deadlines in ${MONTHS[dlMi]} ${dlYear})`],[],[`Generated: ${new Date().toLocaleString()}`],[],hdrs,...rows]);
+    ws['!cols']=[{wch:4},{wch:52},{wch:22},{wch:24},{wch:24},{wch:14},{wch:26},{wch:14},{wch:14},{wch:16},{wch:40}];
+    XLSX.utils.book_append_sheet(wb,ws,`${mName} ${year}`);
+    const yrHdrs=["Task","Category","Owner",...MONTHS.map(m=>m.slice(0,3))];
+    const yrRows=tasks.map(t=>{const r=[t.name,t.category,t.owner];MONTHS.forEach((_,i2)=>{const s=statuses[`${year}-${i2}-${t.id}`];r.push(s?.owner_status||'');});return r;});
+    const wsYr=XLSX.utils.aoa_to_sheet([[`FY${year} Summary`],[],yrHdrs,...yrRows]);
+    wsYr['!cols']=[{wch:52},{wch:22},{wch:24},...MONTHS.map(()=>({wch:8}))];
+    XLSX.utils.book_append_sheet(wb,wsYr,`FY${year} Summary`);
+    XLSX.writeFile(wb,`MarineTeknik_Close_${mName}_${year}.xlsx`);
+    showToast('Excel exported ✓','success');
+  };
+
+  // ── Derived ───────────────────────────────────────────────────────────────────
+  const catNames=[...new Set([...cats.map(c=>c.name),...tasks.map(t=>t.category)])];
+  const filtered=tasks.filter(t=>(fCat==="All"||t.category===fCat)&&(fOwner==="All"||t.owner===fOwner));
+  const done   =filtered.filter(t=>{ const s=getSt(t.id); return isComplete(s); }).length;
+  const lateCount=filtered.filter(t=>{ const s=getSt(t.id); const ef=effD(t); return isLate(s,ef,dlYear,dlMi); }).length;
+  const pend   =filtered.filter(t=>getSt(t.id).ownerStatus==="PENDING").length;
+  const notS   =filtered.filter(t=>!getSt(t.id).ownerStatus).length;
+  const naC    =filtered.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
+  const pct    =filtered.length>0?Math.round(done/filtered.length*100):0;
+  const overdue=isCur?tasks.filter(t=>{const s=getSt(t.id);const ef=effD(t);return !isComplete(s)&&today.getDate()>ef;}):[];
   const mHols=((holidays||{})[`${dlYear}-${dlMi}`])||[];
 
-  if(!ready)return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:20,background:"#0f172a"}}><span style={{fontSize:40}}>⚓</span><div className="spinner"/><div style={{color:"#94a3b8",fontSize:14}}>Connecting to Supabase…</div></div>);
+  if(!ready) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:20,background:"#0f172a"}}>
+      <span style={{fontSize:40}}>⚓</span>
+      <div className="spinner"/>
+      <div style={{color:"#94a3b8",fontSize:14}}>Connecting to Supabase…</div>
+    </div>
+  );
 
-  return(<div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:"#f1f5f9",minHeight:"100vh"}}><div style={{background:"#0f172a",color:"#f8fafc",display:"flex",alignItems:"center",padding:"0 20px",height:60,gap:16,position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:24}}>⚓</span><div><div style={{fontWeight:800,fontSize:16}}>MarineTeknik</div><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase"}}>Monthly Close</div></div></div><div style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto",padding:"4px 10px",borderRadius:20,background:"rgba(16,185,129,0.1)"}}><div className="live-dot" style={{background:syncing?"#f59e0b":"#10b981"}}/><span style={{fontSize:11,fontWeight:700,color:syncing?"#f59e0b":"#10b981"}}>{syncLabel}</span></div><button onClick={()=>{sessionStorage.removeItem('mt_auth');window.location.reload();}} style={{padding:"5px 14px",borderRadius:6,border:"1px solid rgba(255,255,255,0.2)",background:"transparent",color:"rgba(255,255,255,0.6)",fontSize:12,fontWeight:600,cursor:"pointer"}}>⎋ Sign Out</button></div><div style={{padding:"10px 20px",background:"#fff",borderBottom:"1px solid #e2e8f0",display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>{[{n:done,l:"Complete",c:"#10b981"}].map(x=>(<div key={x.l} style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:x.c}}>{x.n}</div><div style={{fontSize:10,color:"#64748b"}}>{x.l}</div></div>))}<div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{pct}% complete</div><div style={{height:8,background:"#e2e8f0",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:"#10b981"}}/></div></div></div><div style={{padding:"20px",maxWidth:1300,margin:"0 auto"}}><ChecklistView tasks={filtered} getSt={getSt} patch={patch} effD={effD} team={team} cats={cats} dlYear={dlYear} dlMi={dlMi} archiveTask={archiveTask}/></div>{toast&&<div className="fade-in" style={{position:"fixed",bottom:20,right:20,padding:"12px 18px",borderRadius:10,background:"#f0fdf4",color:"#166534",fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.18)"}}>{toast.msg}</div>}</div>);
+  return(
+    <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:"#f1f5f9",minHeight:"100vh"}}>
+
+      {/* HEADER */}
+      <div style={S.hdr}>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+          <span style={{fontSize:24}}>⚓</span>
+          <div>
+            <div style={{fontWeight:800,fontSize:16,letterSpacing:"-0.5px"}}>MarineTeknik</div>
+            <div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px"}}>Monthly Close Tracker</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:3,background:"#1e293b",borderRadius:8,padding:3}}>
+          {[["checklist","✓ Checklist"],["dashboard","📊 Dashboard"],["settings","⚙ Settings"]].map(([v,l])=>(
+            <button key={v} style={{...S.navBtn,...(view===v?S.navOn:{})}} onClick={()=>setView(v)}>{l}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:20,background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.3)"}}>
+          <div className="live-dot" style={{background:syncing?"#f59e0b":"#10b981"}}/>
+          <span style={{fontSize:11,fontWeight:700,color:syncing?"#f59e0b":"#10b981"}}>{syncLabel}</span>
+        </div>
+        <button
+          onClick={()=>{sessionStorage.removeItem('mt_auth');window.location.reload();}}
+          style={{padding:"5px 14px",borderRadius:6,border:"1px solid rgba(255,255,255,0.2)",background:"transparent",color:"rgba(255,255,255,0.6)",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}
+          title="Sign out">
+          ⎋ Sign Out
+        </button>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
+          {mHols.length>0&&<button style={S.holPill} onClick={()=>setHolOpen(true)}>🎌 {mHols.length} holiday{mHols.length>1?"s":""}</button>}
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <button style={S.arrBtn} onClick={()=>navMon(-1)}>‹</button>
+            <div style={{textAlign:"center",cursor:"pointer"}} onClick={()=>setYrOpen(true)}>
+              <div style={{fontSize:9,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px"}}>Closing</div>
+              <div style={S.monBtn}>{MONTHS[mi]} {year} ▾</div>
+              <div style={{fontSize:9,color:"#94a3b8"}}>Due in {MONTHS[dlMi].slice(0,3)} {dlYear}</div>
+            </div>
+            <button style={S.arrBtn} onClick={()=>navMon(1)}>›</button>
+          </div>
+          <button style={S.expBtn} onClick={doExport}>↓ Export Excel</button>
+        </div>
+      </div>
+
+      {/* STATS BAR */}
+      <div style={S.statsBar}>
+        {[{n:done,l:"Complete",c:"#10b981"},{n:lateCount,l:"Late",c:"#dc2626"},{n:pend,l:"Pending",c:"#f59e0b"},{n:notS,l:"Not Started",c:"#94a3b8"}].map(x=>(
+          <div key={x.l} style={{textAlign:"center",minWidth:52}}>
+            <div style={{fontSize:22,fontWeight:800,color:x.c,lineHeight:1.1}}>{x.n}</div>
+            <div style={{fontSize:10,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px"}}>{x.l}</div>
+          </div>
+        ))}
+        <div style={{display:"flex",flexDirection:"column",gap:3,minWidth:180}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{pct}% complete</div>
+          <div style={{height:8,background:"#e2e8f0",borderRadius:4,overflow:"hidden"}}>
+            <div style={{height:"100%",borderRadius:4,width:`${pct}%`,background:pct===100?"#10b981":pct>60?"#3b82f6":"#f59e0b",transition:"width .4s"}}/>
+          </div>
+        </div>
+        <div style={{padding:"4px 12px",borderRadius:6,background:"#eff6ff",border:"1px solid #bfdbfe",fontSize:12,color:"#1e40af",fontWeight:600,whiteSpace:"nowrap"}}>
+          Closing <strong>{MONTHS[mi].slice(0,3)} {year}</strong> → Due <strong>{MONTHS[dlMi].slice(0,3)} {dlYear}</strong>
+        </div>
+        <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <select style={S.sel} value={fCat} onChange={e=>setFCat(e.target.value)}>
+            <option value="All">All Categories</option>
+            {catNames.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+          <select style={S.sel} value={fOwner} onChange={e=>setFOwner(e.target.value)}>
+            <option value="All">All Owners</option>
+            {team.map(m=><option key={m.name} value={m.name}>{m.initials} – {m.name.split(" ")[0]}</option>)}
+          </select>
+          <button style={S.addBtn} onClick={()=>setEditTask(false)}>+ Add Task</button>
+          <button style={S.holBtn} onClick={()=>setHolOpen(true)}>🎌 Holidays</button>
+        </div>
+      </div>
+
+      {/* OVERDUE BANNER */}
+      {overdue.length>0&&view==="checklist"&&(
+        <div style={{background:"#fef2f2",borderBottom:"1px solid #fca5a5",padding:"8px 20px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",fontSize:13,color:"#dc2626"}}>
+          <span style={{fontWeight:700}}>⚠ {overdue.length} overdue:</span>
+          {overdue.map(t=><span key={t.id} style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:4,padding:"2px 8px",fontSize:12,whiteSpace:"nowrap"}}>{t.name.split("–")[0].trim()} (due {ord(effD(t))} {MONTHS[dlMi].slice(0,3)})</span>)}
+        </div>
+      )}
+
+      {/* MAIN */}
+      <div style={{padding:"20px",maxWidth:1300,margin:"0 auto"}}>
+        {view==="checklist"&&(
+          tasks.length===0
+            ?<EmptyState onAdd={()=>setEditTask(false)} onSettings={()=>setView("settings")}/>
+            :<ChecklistView tasks={filtered} getSt={getSt} patch={patch} effD={effD} team={team} cats={cats} dlYear={dlYear} dlMi={dlMi} isCur={isCur} todayD={today.getDate()} setStatusTask={setStatusTask} setEditTask={setEditTask} deleteTask={deleteTask}/>
+        )}
+        {view==="dashboard"&&<DashboardView tasks={tasks} statuses={statuses} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} getSt={getSt} effD={effD} team={team} cats={cats} holidays={holidays} patch={patch}/>}
+        {view==="settings"&&<SettingsView team={team} setTeam={setTeam} tasks={tasks} setTasks={setTasks} cats={cats} setCats={setCats} holidays={holidays} setHolidays={setHolidays} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} setEditTask={setEditTask} deleteTask={deleteTask}/>}
+      </div>
+
+      {/* MODALS */}
+      {statusTask&&<StatusModal task={statusTask} getSt={getSt} patch={patch} onClose={()=>setStatusTask(null)} cats={cats} dlYear={dlYear} dlMi={dlMi} holidays={holidays}/>}
+      {editTask!==null&&<EditTaskModal task={editTask||null} onClose={()=>setEditTask(null)} onSave={saveTask} onDelete={editTask?()=>{deleteTask(editTask.id);setEditTask(null);}:null} team={team} cats={cats} setCats={setCats}/>}
+      {holOpen&&<HolidayModal year={dlYear} mi={dlMi} holidays={holidays} setHolidays={setHolidays} onClose={()=>setHolOpen(false)} closingMonth={MONTHS[mi]}/>}
+      {yrOpen&&<YearPickModal year={year} mi={mi} onSelect={(y,m)=>{setYear(y);setMi(m);setYrOpen(false);}} onClose={()=>setYrOpen(false)}/>}
+
+      {/* TOAST */}
+      {toast&&<div className="fade-in" style={{position:"fixed",bottom:20,right:20,zIndex:9999,padding:"12px 18px",borderRadius:10,background:toast.type==='error'?"#fef2f2":toast.type==='success'?"#f0fdf4":"#1e293b",color:toast.type==='error'?"#dc2626":toast.type==='success'?"#166534":"#f8fafc",fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.18)",borderLeft:`4px solid ${toast.type==='error'?"#dc2626":toast.type==='success'?"#10b981":"#3b82f6"}`}}>{toast.msg}</div>}
+    </div>
+  );
 }
 
-function ChecklistView({tasks,getSt,patch,effD,team,cats,dlYear,dlMi,archiveTask}){
+// ── EMPTY STATE ───────────────────────────────────────────────────────────────
+function EmptyState({onAdd,onSettings}){
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:360,gap:16,textAlign:"center"}}>
+      <div style={{fontSize:56}}>📋</div>
+      <div style={{fontSize:22,fontWeight:800,color:"#1e293b"}}>No tasks yet</div>
+      <div style={{fontSize:15,color:"#64748b",maxWidth:400}}>Go to Settings and click "↺ Load Default Tasks" to load all 50 MarineTeknik tasks instantly.</div>
+      <div style={{display:"flex",gap:12}}>
+        <button style={{...S.addBtn,padding:"10px 22px",fontSize:15}} onClick={onAdd}>+ Add Task</button>
+        <button style={{...S.cancelBtn,padding:"10px 22px",fontSize:15}} onClick={onSettings}>⚙ Settings</button>
+      </div>
+    </div>
+  );
+}
+
+// ── CHECKLIST VIEW ────────────────────────────────────────────────────────────
+function ChecklistView({tasks,getSt,patch,effD,team,cats,dlYear,dlMi,isCur,todayD,setStatusTask,setEditTask,deleteTask}){
+  const orderedCats=[...cats.map(c=>c.name),...tasks.map(t=>t.category).filter(c=>!cats.find(x=>x.name===c))];
   const grouped={};
   tasks.forEach(t=>{if(!grouped[t.category])grouped[t.category]=[];grouped[t.category].push(t);});
-  return(<div style={{display:"flex",flexDirection:"column",gap:16}}>{Object.keys(grouped).map(cat=>{const ct=grouped[cat];const cdone=ct.filter(t=>isComplete(getSt(t.id))).length;return(<div key={cat} style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}><div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 18px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}><span style={{width:10,height:10,borderRadius:"50%",background:cc(cat,cats),flexShrink:0}}/><span style={{fontWeight:700,fontSize:13,color:"#1e293b",flex:1}}>{cat}</span><span style={{fontSize:12,color:"#64748b"}}>{cdone}/{ct.length}</span></div>{ct.map(task=>{const st=getSt(task.id);const isDone=isComplete(st);const rowBg=isDone?"#f0fdf4":"#fff";return(<div key={task.id} style={{display:"flex",alignItems:"center",padding:"10px 18px",borderBottom:"1px solid #f1f5f9",gap:12,background:rowBg}}><div style={{width:22,height:22,borderRadius:6,border:isDone?"none":"2px solid #cbd5e1",background:isDone?"#10b981":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",fontWeight:700,cursor:"pointer"}} onClick={()=>{if(isDone)patch(task.id,{ownerStatus:"",reviewerStatus:""});else patch(task.id,{ownerStatus:"DONE",reviewerStatus:"DONE",completionDate:localDateStr()});}}>{isDone&&"✓"}</div><div style={{flex:1}}><div style={{fontSize:14,fontWeight:500,color:isDone?"#94a3b8":"#1e293b"}}>{task.name}</div><div style={{display:"flex",alignItems:"center",gap:8,marginTop:3}}><span style={{padding:"2px 7px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:tcol(task.owner,team)}}>{ini(task.owner,team)}</span>{st.completionDate&&<span style={{padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:600,color:"#166534",background:"#dcfce7",border:"1px solid #86efac"}}>✓ {st.completionDate}</span>}</div></div><div style={{textAlign:"right",flexShrink:0,minWidth:118,padding:"5px 10px",borderRadius:8,background:"#f8fafc",border:"1px solid #e2e8f0"}}><div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{DOWS[new Date(dlYear,dlMi,effD(task)).getDay()]} {ord(effD(task))}</div><div style={{fontSize:11,color:"#94a3b8"}}>{MONTHS[dlMi].slice(0,3)}</div></div><div style={{display:"flex",gap:8,flexShrink:0}}><select style={{padding:"3px 7px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",cursor:"pointer"}} value={st.ownerStatus||""} onChange={e=>patch(task.id,{ownerStatus:e.target.value})}><option value="">—</option><option value="DONE">✓</option><option value="PENDING">⏳</option></select><button style={{padding:"4px 10px",borderRadius:6,border:"1px solid #fed7aa",background:"#fff",fontSize:12,cursor:"pointer",color:"#f59e0b",fontWeight:600}} onClick={()=>archiveTask(task.id)} title="Archive">📦</button></div></div>);})}</div>);})}</div>);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {[...new Set(orderedCats)].filter(cat=>grouped[cat]?.length>0).map(cat=>{
+        const ct=grouped[cat];
+        const cdone=ct.filter(t=>isComplete(getSt(t.id))).length;
+        const cna  =ct.filter(t=>getSt(t.id).ownerStatus==="N/A").length;
+        const clate=ct.filter(t=>{ const s=getSt(t.id);const ef=effD(t);return isLate(s,ef,dlYear,dlMi); }).length;
+        return(
+          <div key={cat} style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 18px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
+              <span style={{width:10,height:10,borderRadius:"50%",background:cc(cat,cats),flexShrink:0,display:"inline-block"}}/>
+              <span style={{fontWeight:700,fontSize:13,color:"#1e293b",flex:1}}>{cat}</span>
+              <span style={{fontSize:12,color:"#64748b",fontWeight:600}}>{cdone}/{ct.length} complete</span>
+              {clate>0&&<span style={{fontSize:11,fontWeight:700,color:"#ea580c",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:4,padding:"1px 6px",marginLeft:4}}>⚠ {clate} late</span>}
+            </div>
+            {ct.map(task=>{
+              const st=getSt(task.id);
+              const eff=effD(task);
+              const isDone  =isComplete(st);
+              const isNA    =st.ownerStatus==="N/A";
+              const isPend  =st.ownerStatus==="PENDING";
+              const isOver  =isCur&&!isDone&&todayD>eff;
+              const wasLate =isLate(st,eff,dlYear,dlMi);
+              const rowBg   =isDone&&wasLate?"#fff7ed":isDone?"#f0fdf4":isPend?"#fffbeb":isOver?"#fef2f2":"#fff";
+              const effDate=new Date(dlYear,dlMi,eff);
+              const dow=DOWS[effDate.getDay()];
+              const moved=eff!==task.deadlineDay;
+              const adj=st.adjustedDeadline!=null;
+              return(
+                <React.Fragment key={task.id}>
+                <div className="trow" style={{display:"flex",alignItems:"center",padding:"10px 18px",borderBottom:"1px solid #f1f5f9",gap:12,background:rowBg}}>
+                  <div style={{width:22,height:22,borderRadius:6,border:isDone?"none":"2px solid #cbd5e1",background:isDone?(wasLate?"#f97316":"#10b981"):"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}
+                    onClick={()=>{if(isDone)patch(task.id,{ownerStatus:"",reviewerStatus:""});else patch(task.id,{ownerStatus:"DONE",reviewerStatus:"DONE",completionDate:localDateStr()});}}> 
+                    {isDone&&(wasLate?"!":"✓")}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:500,color:isDone?(wasLate?"#c2410c":"#94a3b8"):"#1e293b",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                      {task.name}
+                      {wasLate&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#ea580c",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:4,padding:"1px 5px",textDecoration:"none",display:"inline-block"}}>LATE</span>}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginTop:3,flexWrap:"wrap"}}>
+                      <span style={{padding:"2px 7px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:tcol(task.owner,team),flexShrink:0}}>{ini(task.owner,team)}</span>
+                      {st.notes&&<span title={st.notes} style={{fontSize:11,cursor:"help"}}>📝</span>}
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0,minWidth:118,padding:"5px 10px",borderRadius:8,background:isOver?"#fef2f2":moved?"#f5f3ff":"#f8fafc",border:`1px solid ${isOver?"#fca5a5":moved?"#ddd6fe":"#e2e8f0"}`}}>
+                    <div style={{fontSize:13,fontWeight:700,color:isOver?"#dc2626":moved?"#7c3aed":"#1e293b"}}>{isOver?"⚠ ":""}{dow} {ord(eff)}</div>
+                    <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{MONTHS[dlMi].slice(0,3)} {dlYear}</div>
+                    {moved&&<div style={{fontSize:10,color:adj?"#7c3aed":"#0891b2",fontWeight:600,marginTop:1}}>{adj?"adjusted":"skipped"} from {ord(task.deadlineDay)}</div>}
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+                    <span style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px"}}>Completion Date</span>
+                    <input type="date" style={{padding:"3px 7px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:st.completionDate?"#f0fdf4":"#f8fafc",color:st.completionDate?"#166534":"#94a3b8",cursor:"pointer"}} value={st.completionDate||""} onChange={e=>patch(task.id,{completionDate:e.target.value})}/>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+                    <span style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px"}}>Completion Date</span>
+                    <input type="date" style={{padding:"3px 7px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:st.completionDate?"#f0fdf4":"#f8fafc",color:st.completionDate?"#166534":"#94a3b8",cursor:"pointer"}} value={st.completionDate||""} onChange={e=>patch(task.id,{completionDate:e.target.value})}/>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexShrink:0}}>
+                    <MiniDrop label="Owner"    value={st.ownerStatus}    onChange={v=>patch(task.id,{ownerStatus:v})}/>
+                    <MiniDrop label="Reviewer" value={st.reviewerStatus} onChange={v=>patch(task.id,{reviewerStatus:v})}/>
+                  </div>
+                  <div style={{display:"flex",gap:5,flexShrink:0}}>
+                    <button style={S.smBtn} onClick={()=>setStatusTask(task)}>Status</button>
+                    <button style={{...S.smBtn,color:"#7c3aed",borderColor:"#ddd6fe"}} onClick={()=>setEditTask(task)}>✏ Edit</button>
+                  </div>
+                </div>
+                {/* Inline comment row */}
+                <CommentRow task={task} st={st} patch={patch}/>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
+
+// ── COMMENT ROW ───────────────────────────────────────────────────────────────
+function CommentRow({task,st,patch}){
+  const [open,setOpen]=useState(!!st.notes);
+  const [val,setVal]=useState(st.notes||'');
+  const [saving,setSaving]=useState(false);
+
+  // Sync if notes change externally (realtime update from another user)
+  useEffect(()=>{
+    setVal(st.notes||'');
+    if(st.notes) setOpen(true);
+  },[st.notes]);
+
+  const save=async()=>{
+    setSaving(true);
+    await patch(task.id,{notes:val.trim()});
+    setSaving(false);
+    if(!val.trim()) setOpen(false);
+  };
+
+  const hasNote=!!st.notes;
+
+  return(
+    <div style={{borderTop:open?"1px solid #f1f5f9":"none",background:open?"#fafafa":"transparent"}}>
+      {!open&&(
+        <div style={{padding:"0 18px 8px",display:"flex",alignItems:"center",gap:8}}>
+          <button
+            onClick={()=>setOpen(true)}
+            style={{fontSize:11,color:"#94a3b8",background:"none",border:"1px dashed #e2e8f0",borderRadius:5,padding:"2px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            💬 Add comment
+          </button>
+        </div>
+      )}
+      {open&&(
+        <div style={{padding:"8px 18px 10px",display:"flex",gap:8,alignItems:"flex-start"}}>
+          <div style={{fontSize:13,color:"#64748b",paddingTop:8,flexShrink:0}}>💬</div>
+          <textarea
+            value={val}
+            onChange={e=>setVal(e.target.value)}
+            onBlur={save}
+            placeholder="Add a comment or explanation (e.g. delayed due to missing bank statement)…"
+            style={{flex:1,padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,color:"#374151",resize:"vertical",minHeight:36,maxHeight:120,fontFamily:"inherit",outline:"none",background:"#fff"}}
+            onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))save();}}
+          />
+          <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+            <button onClick={save} style={{padding:"5px 12px",borderRadius:6,border:"none",background:"#3b82f6",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+              {saving?"…":"Save"}
+            </button>
+            <button onClick={()=>{if(!val.trim()){patch(task.id,{notes:''});setOpen(false);}else setOpen(false);}} style={{padding:"5px 12px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",color:"#64748b",fontSize:12,cursor:"pointer"}}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+      {!open&&hasNote&&(
+        <div style={{padding:"0 18px 8px",display:"flex",alignItems:"flex-start",gap:6}} onClick={()=>setOpen(true)}>
+          <span style={{fontSize:11}}>💬</span>
+          <span style={{fontSize:12,color:"#374151",cursor:"pointer",flex:1,fontStyle:"italic"}}>"{st.notes}"</span>
+          <button onClick={(e)=>{e.stopPropagation();patch(task.id,{notes:''});setVal('');}} style={{fontSize:10,color:"#dc2626",background:"none",border:"none",cursor:"pointer",padding:"0 4px",flexShrink:0}}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MiniDrop({label,value,onChange}){
+  const cm={DONE:{background:"#dcfce7",color:"#166534",border:"1px solid #86efac"},PENDING:{background:"#fef9c3",color:"#854d0e",border:"1px solid #fde047"},"N/A":{background:"#e0f2fe",color:"#0369a1",border:"1px solid #7dd3fc"}};
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:2}}>
+      <span style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}</span>
+      <select style={{padding:"3px 7px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",cursor:"pointer",...(cm[value]||{})}} value={value||""} onChange={e=>onChange(e.target.value)}>
+        <option value="">—</option><option value="DONE">✓ Done</option><option value="PENDING">⏳ Pending</option><option value="N/A">N/A</option>
+      </select>
+    </div>
+  );
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+function DashboardView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,holidays,patch}){
+  const [tab,setTab]=useState("overview");
+  const today=new Date();
+  const isCur=today.getFullYear()===dlYear&&today.getMonth()===dlMi;
+  const catNames=[...new Set(tasks.map(t=>t.category))];
+  const mStats=MONTHS.map((m,i)=>{
+    const tot=tasks.length;
+    const dlMiI = i===11 ? 0 : i+1;
+    const dlYrI = i===11 ? year+1 : year;
+    const dn=tasks.filter(t=>{
+      const s=statuses[`${year}-${i}-${t.id}`]||{};
+      return s.owner_status==="DONE"||s.owner_status==="N/A";
+    }).length;
+    const late=tasks.filter(t=>{
+      const s=statuses[`${year}-${i}-${t.id}`]||{};
+      if(!s.completion_date) return false;
+      const eff=calcEffDay(t.deadlineDay,s.adjusted_deadline??null,dlYrI,dlMiI,holidays);
+      const st2={completionDate:s.completion_date};
+      return isLate(st2,eff,dlYrI,dlMiI);
+    }).length;
+    return{month:m.slice(0,3),done:dn,total:tot,pct:tot>0?Math.round(dn/tot*100):0,late};
+  });
+  const cStats=catNames.map(cat=>{
+    const ct=tasks.filter(t=>t.category===cat);
+    const dn=ct.filter(t=>isComplete(getSt(t.id))).length;
+    const tot=ct.length;
+    return{cat,done:dn,total:tot,pct:tot>0?Math.round(dn/tot*100):0};
+  });
+  const oStats=team.map(m=>{
+    const mt=tasks.filter(t=>t.owner===m.name);if(!mt.length)return null;
+    const dn=mt.filter(t=>isComplete(getSt(t.id))).length;
+    const ov=isCur?mt.filter(t=>{const s=getSt(t.id);return !isComplete(s)&&today.getDate()>effD(t);}).length:0;
+    const lt=mt.filter(t=>{ const s=getSt(t.id);const ef=effD(t);return isLate(s,ef,dlYear,dlMi); }).length;
+    return{...m,total:mt.length,done:dn,overdue:ov,late:lt,pct:Math.round(dn/mt.length*100)};
+  }).filter(Boolean);
+  if(!tasks.length) return <div style={{textAlign:"center",padding:"60px 20px",color:"#94a3b8",fontSize:15}}>No tasks yet.</div>;
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      <div style={{display:"flex",gap:4,background:"#e2e8f0",borderRadius:8,padding:3,width:"fit-content"}}>
+        {[["overview","📊 Overview"],["manager","👔 Manager View"],["deadlines","📅 Deadline Manager"]].map(([v,l])=>(
+          <button key={v} style={{padding:"7px 18px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:tab===v?"#fff":"transparent",color:tab===v?"#0f172a":"#64748b",boxShadow:tab===v?"0 1px 3px rgba(0,0,0,.1)":"none"}} onClick={()=>setTab(v)}>{l}</button>
+        ))}
+      </div>
+      {tab==="overview"&&(
+        <>
+          <div style={{background:"#fff",borderRadius:12,padding:"20px 24px",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+            <div style={S.dTitle}>FY{year} — Monthly Progress (deadlines in following month)</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(12,1fr)",gap:8}}>
+              {mStats.map((m,i)=>(
+                <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"8px 4px",borderRadius:8,border:i===mi?"2px solid #3b82f6":"1px solid #f1f5f9",background:i===mi?"#eff6ff":"#fff"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase"}}>{m.month}</div>
+                  <svg viewBox="0 0 36 36" style={{width:52,height:52}}>
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="3.2"/>
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke={m.pct===100?(m.late>0?"#f97316":"#10b981"):m.pct>0?"#3b82f6":"#e2e8f0"} strokeWidth="3.2" strokeDasharray={`${m.pct} ${100-m.pct}`} strokeDashoffset="25" transform="rotate(-90 18 18)"/>
+                    <text x="18" y="20.5" textAnchor="middle" fontSize="7" fill={m.pct===100?(m.late>0?"#ea580c":"#10b981"):"#1e293b"} fontWeight="700">{m.pct}%</text>
+                  </svg>
+                  <div style={{fontSize:10,color:"#94a3b8"}}>{m.done}/{m.total}</div>
+                  {m.late>0&&<div style={{fontSize:9,color:"#ea580c",fontWeight:700}}>⚠ {m.late} late</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:280,background:"#fff",borderRadius:12,padding:"20px 24px",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+              <div style={S.dTitle}>By Category — {MONTHS[mi].slice(0,3)} close</div>
+              {cStats.map(c=>(
+                <div key={c.cat} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:cc(c.cat,cats),flexShrink:0}}/>
+                  <div style={{fontSize:12,color:"#374151",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.cat}</div>
+                  <div style={{width:120,height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+                    <div style={{height:"100%",borderRadius:3,background:c.pct===100?"#10b981":cc(c.cat,cats),width:`${c.pct}%`}}/>
+                  </div>
+                  <div style={{fontSize:12,color:"#64748b",minWidth:36,textAlign:"right"}}>{c.done}/{c.total}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{flex:1,minWidth:280,background:"#fff",borderRadius:12,padding:"20px 24px",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+              <div style={S.dTitle}>By Team Member — {MONTHS[mi].slice(0,3)} close</div>
+              {oStats.map(m=>(
+                <div key={m.name} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                  <div style={{width:36,height:36,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:3}}>
+                      {m.name.split(" ").slice(0,2).join(" ")}
+                      {m.overdue>0&&<span style={{marginLeft:8,fontSize:11,color:"#dc2626",fontWeight:700}}>⚠ {m.overdue} overdue</span>}
+                      {m.late>0&&<span style={{marginLeft:6,fontSize:11,color:"#ea580c",fontWeight:700}}>🕐 {m.late} late</span>}
+                    </div>
+                    <div style={{height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",borderRadius:3,background:m.pct===100?"#10b981":m.color,width:`${m.pct}%`}}/>
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,color:"#64748b",minWidth:32,textAlign:"right"}}>{m.done}/{m.total}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Late tasks this month */}
+          <LateSummary tasks={tasks} statuses={statuses} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} holidays={holidays} team={team} cats={cats}/>
+        </>
+      )}
+      {tab==="manager"&&<ManagerView tasks={tasks} statuses={statuses} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} getSt={getSt} effD={effD} team={team} cats={cats} isCur={isCur} today={today}/>}
+      {tab==="deadlines"&&<DeadlineManager tasks={tasks} year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} holidays={holidays} getSt={getSt} patch={patch} cats={cats} team={team}/>}
+    </div>
+  );
+}
+
+// ── MANAGER VIEW ──────────────────────────────────────────────────────────────
+function ManagerView({tasks,statuses,year,mi,dlYear,dlMi,getSt,effD,team,cats,isCur,today}){
+  const [sel,setSel]=useState("All");
+  const memberData=team.map(m=>{
+    const myTasks=tasks.filter(t=>t.owner===m.name);
+    return{...m,tasks:myTasks.map(t=>{const st=getSt(t.id);const eff=effD(t);const isOver=isCur&&!isComplete(st)&&today.getDate()>eff;return{...t,st,eff,isOver};})};
+  }).filter(m=>m.tasks.length>0);
+
+  const yearRows=team.map(m=>{
+    const mt=tasks.filter(t=>t.owner===m.name);if(!mt.length)return null;
+    const months=MONTHS.map((_,i)=>{
+      const tot=mt.length;
+      const dn=mt.filter(t=>{const s=statuses[`${year}-${i}-${t.id}`]?.owner_status;return s==="DONE"||s==="N/A";}).length;
+      return{done:dn,total:tot,pct:tot>0?Math.round(dn/tot*100):0};
+    });
+    return{...m,months};
+  }).filter(Boolean);
+
+  const filtered=sel==="All"?memberData:memberData.filter(m=>m.name===sel);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      {/* Summary cards */}
+      <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+        {memberData.map(m=>{
+          const done=m.tasks.filter(t=>isComplete(t.st)).length;
+          const overdue=m.tasks.filter(t=>t.isOver).length;
+          const pend=m.tasks.filter(t=>t.st.ownerStatus==="PENDING").length;
+          const pct=m.tasks.length>0?Math.round(done/m.tasks.length*100):0;
+          return(
+            <div key={m.name} onClick={()=>setSel(s=>s===m.name?"All":m.name)}
+              style={{flex:"1 1 180px",background:"#fff",borderRadius:12,padding:16,boxShadow:"0 1px 4px rgba(0,0,0,.06)",cursor:"pointer",border:sel===m.name?"2px solid #3b82f6":"2px solid transparent"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{m.name.split(" ").slice(0,2).join(" ")}</div>
+                  <div style={{fontSize:11,color:"#64748b"}}>{m.tasks.length} tasks</div>
+                </div>
+              </div>
+              <div style={{height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden",marginBottom:6}}>
+                <div style={{height:"100%",borderRadius:3,background:pct===100?"#10b981":m.color,width:`${pct}%`}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
+                <span style={{color:"#10b981",fontWeight:700}}>{done} done</span>
+                {overdue>0&&<span style={{color:"#dc2626",fontWeight:700}}>⚠ {overdue}</span>}
+                {pend>0&&<span style={{color:"#f59e0b",fontWeight:700}}>{pend} pending</span>}
+                <span style={{color:"#64748b"}}>{pct}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Task detail tables */}
+      {filtered.map(m=>{
+        const done=m.tasks.filter(t=>t.st.ownerStatus==="DONE").length;
+        return(
+          <div key={m.name} style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 20px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
+              <div style={{fontWeight:700,fontSize:15,color:"#1e293b",flex:1}}>{m.name}</div>
+              <div style={{fontSize:12,color:"#64748b",fontWeight:600}}>{done}/{m.tasks.length} complete — closing {MONTHS[mi].slice(0,3)} {year}, due {MONTHS[dlMi].slice(0,3)} {dlYear}</div>
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead>
+                  <tr style={{background:"#f8fafc"}}>
+                    {["Task","Category","Due Date","Owner Status","Reviewer Status","Completed","Notes"].map(h=>(
+                      <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.tasks.map(t=>{
+                    const isDone  =isComplete(t.st);
+                    const isNA    =t.st.ownerStatus==="N/A";
+                    const wasLateM=isLate(t.st,t.eff,dlYear,dlMi);
+                    const isPend  =t.st.ownerStatus==="PENDING";
+                    const rowBg=isDone&&wasLateM?"#fff7ed":isDone?"#f0fdf4":t.isOver?"#fef2f2":isPend?"#fffbeb":"#fff";
+                    const stColor=isDone&&wasLateM?"#ea580c":isDone&&isNA?"#0369a1":isDone?"#10b981":t.isOver?"#dc2626":isPend?"#f59e0b":"#cbd5e1";
+                    const stLabel=isDone&&wasLateM?"🕐 Late":isDone&&isNA?"N/A ✓":isDone?"✓ Done":t.isOver?"⚠ Overdue":isPend?"⏳ Pending":isNA?"N/A":"—";
+                    const effDate=new Date(dlYear,dlMi,t.eff);
+                    return(
+                      <tr key={t.id} style={{background:rowBg,borderBottom:"1px solid #f1f5f9"}}>
+                        <td style={{padding:"10px 12px",fontSize:13,fontWeight:500,color:isDone?"#94a3b8":"#1e293b",textDecoration:isDone?"line-through":"none",maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</td>
+                        <td style={{padding:"10px 12px"}}><span style={{padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:700,color:"#fff",background:cc(t.category,cats),whiteSpace:"nowrap"}}>{t.category}</span></td>
+                        <td style={{padding:"10px 12px",fontSize:12,fontWeight:600,color:t.isOver?"#dc2626":"#374151",whiteSpace:"nowrap"}}>{DOWS[effDate.getDay()]} {ord(t.eff)} {MONTHS[dlMi].slice(0,3)}</td>
+                        <td style={{padding:"10px 12px"}}><span style={{padding:"3px 8px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:stColor,whiteSpace:"nowrap"}}>{stLabel}</span></td>
+                        <td style={{padding:"10px 12px"}}>{t.st.reviewerStatus?<span style={{padding:"3px 8px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:t.st.reviewerStatus==="DONE"?"#10b981":t.st.reviewerStatus==="PENDING"?"#f59e0b":"#94a3b8",whiteSpace:"nowrap"}}>{t.st.reviewerStatus==="DONE"?"✓ Done":t.st.reviewerStatus==="PENDING"?"⏳ Pending":"N/A"}</span>:<span style={{color:"#cbd5e1",fontSize:11}}>—</span>}</td>
+                        <td style={{padding:"10px 12px",fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>{t.st.completionDate||"—"}</td>
+                        <td style={{padding:"10px 12px",fontSize:11,color:t.st.notes?"#374151":"#cbd5e1",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontStyle:t.st.notes?"italic":"normal"}}>
+                          {t.st.notes?<span title={t.st.notes}>💬 {t.st.notes}</span>:"—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Year history table */}
+      <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+        <div style={{padding:"14px 20px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0",fontWeight:700,fontSize:14,color:"#1e293b"}}>📅 FY{year} — Month-by-Month Completion per Employee</div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:"#0f172a"}}>
+                <th style={{padding:"10px 16px",textAlign:"left",color:"rgba(255,255,255,0.7)",fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",minWidth:160}}>Employee</th>
+                {MONTHS.map((m,i)=>(<th key={i} style={{padding:"10px 8px",textAlign:"center",color:i===mi?"#fbbf24":"rgba(255,255,255,0.7)",fontSize:11,fontWeight:i===mi?700:600,textTransform:"uppercase",letterSpacing:"0.5px",minWidth:52,background:i===mi?"rgba(255,255,255,0.08)":"transparent"}}>{m.slice(0,3)}</th>))}
+              </tr>
+            </thead>
+            <tbody>
+              {yearRows.map((m,ri)=>(
+                <tr key={m.name} style={{borderBottom:"1px solid #f1f5f9",background:ri%2===0?"#fff":"#f8fafc"}}>
+                  <td style={{padding:"10px 16px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>{m.initials}</div>
+                      <span style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{m.name.split(" ").slice(0,2).join(" ")}</span>
+                    </div>
+                  </td>
+                  {m.months.map((mo,i)=>(
+                    <td key={i} style={{padding:"10px 8px",textAlign:"center",background:i===mi?"rgba(59,130,246,0.04)":"transparent"}}>
+                      {mo.total===0?<span style={{color:"#cbd5e1",fontSize:11}}>—</span>:
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                          <span style={{fontSize:12,fontWeight:700,color:mo.pct===100?"#10b981":mo.pct>0?"#3b82f6":"#94a3b8"}}>{mo.pct}%</span>
+                          <span style={{fontSize:10,color:"#94a3b8"}}>{mo.done}/{mo.total}</span>
+                        </div>
+                      }
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── LATE SUMMARY ─────────────────────────────────────────────────────────────
+function LateSummary({tasks,statuses,year,mi,dlYear,dlMi,holidays,team,cats}){
+  const lateTasks=tasks.map(t=>{
+    const s=statuses[`${year}-${mi}-${t.id}`]||{};
+    if(!s.completion_date) return null;
+    const eff=calcEffDay(t.deadlineDay,s.adjusted_deadline??null,dlYear,dlMi,holidays);
+    const st2={completionDate:s.completion_date};
+    if(!isLate(st2,eff,dlYear,dlMi)) return null;
+    // Calculate days late using pure numeric comparison
+    const parts=s.completion_date.split('-');
+    const completed=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+    const deadline=new Date(dlYear,dlMi,eff);
+    const daysLate=Math.ceil((completed-deadline)/(1000*60*60*24));
+    return{...t,s,eff,daysLate,completedDate:s.completion_date};
+  }).filter(Boolean);
+
+  if(!lateTasks.length) return(
+    <div style={{background:"#f0fdf4",borderRadius:12,padding:"16px 20px",boxShadow:"0 1px 4px rgba(0,0,0,.06)",display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:20}}>✅</span>
+      <div>
+        <div style={{fontWeight:700,fontSize:14,color:"#166534"}}>No late tasks this month</div>
+        <div style={{fontSize:12,color:"#4ade80",marginTop:2}}>All completed tasks were finished on or before their deadline.</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+      <div style={{padding:"14px 20px",background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:18}}>🕐</span>
+        <div style={{fontWeight:700,fontSize:14,color:"#c2410c",flex:1}}>Late Tasks — {MONTHS[mi]} {year} Close</div>
+        <div style={{fontSize:12,color:"#ea580c",fontWeight:600}}>{lateTasks.length} task{lateTasks.length!==1?"s":""} completed after deadline</div>
+      </div>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead>
+          <tr style={{background:"#f8fafc"}}>
+            {["Task","Category","Owner","Deadline","Completed","Days Late","Notes"].map(h=>(
+              <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {lateTasks.map(t=>(
+            <tr key={t.id} style={{borderBottom:"1px solid #f1f5f9",background:"#fffbf5"}}>
+              <td style={{padding:"10px 12px",fontSize:13,fontWeight:600,color:"#1e293b",maxWidth:260,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</td>
+              <td style={{padding:"10px 12px"}}><span style={{padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:700,color:"#fff",background:cc(t.category,cats),whiteSpace:"nowrap"}}>{t.category}</span></td>
+              <td style={{padding:"10px 12px"}}>
+                <span style={{padding:"2px 7px",borderRadius:4,fontSize:11,fontWeight:700,color:"#fff",background:tcol(t.owner,team),whiteSpace:"nowrap"}}>{ini(t.owner,team)}</span>
+              </td>
+              <td style={{padding:"10px 12px",fontSize:12,color:"#374151",whiteSpace:"nowrap"}}>{ord(t.eff)} {MONTHS[dlMi].slice(0,3)}</td>
+              <td style={{padding:"10px 12px",fontSize:12,color:"#374151",whiteSpace:"nowrap"}}>{t.completedDate}</td>
+              <td style={{padding:"10px 12px"}}>
+                <span style={{padding:"3px 8px",borderRadius:20,fontSize:11,fontWeight:700,color:"#fff",background:t.daysLate>7?"#dc2626":t.daysLate>3?"#ea580c":"#f97316",whiteSpace:"nowrap"}}>+{t.daysLate} day{t.daysLate!==1?"s":""}</span>
+              </td>
+              <td style={{padding:"10px 12px",fontSize:11,color:"#64748b",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontStyle:t.s.notes?"italic":"normal"}}>{t.s.notes||"—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── DEADLINE MANAGER ──────────────────────────────────────────────────────────
+function DeadlineManager({tasks,year,mi,dlYear,dlMi,holidays,getSt,patch,cats,team}){
+  const mHols=((holidays||{})[`${dlYear}-${dlMi}`])||[];
+  const dim=new Date(dlYear,dlMi+1,0).getDate();
+  const [local,setLocal]=useState({});
+  const [saved,setSaved]=useState(false);
+  const getVal=tid=>{if(local[tid]!==undefined)return local[tid];const a=getSt(tid).adjustedDeadline;return a!=null?String(a):"";};
+  const getEff=(task,val)=>calcEffDay(task.deadlineDay,val!==""&&val!=null?parseInt(val):null,dlYear,dlMi,holidays);
+  const hasChanges=Object.keys(local).length>0;
+  const saveAll=()=>{Object.entries(local).forEach(([tid,val])=>patch(parseInt(tid),{adjustedDeadline:val!==""?parseInt(val):null}));setLocal({});setSaved(true);setTimeout(()=>setSaved(false),2500);};
+  const resetTask=tid=>{setLocal(p=>{const n={...p};delete n[tid];return n;});patch(tid,{adjustedDeadline:null});};
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{background:"#fff",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,marginBottom:mHols.length?14:0}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:16}}>📅 Deadline Manager — Closing {MONTHS[mi]} {year} · Due in {MONTHS[dlMi]} {dlYear}</div>
+            <div style={{fontSize:13,color:"#64748b",marginTop:4}}>Override base deadlines for this month. Weekends and holidays are always skipped forward automatically.</div>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            {saved&&<span style={{fontSize:13,color:"#10b981",fontWeight:600}}>✓ Saved!</span>}
+            {hasChanges&&!saved&&<span style={{fontSize:12,color:"#f59e0b",fontWeight:600}}>● Unsaved changes</span>}
+            <button style={{...S.addBtn,...(!hasChanges?{opacity:.45,cursor:"not-allowed"}:{})}} disabled={!hasChanges} onClick={saveAll}>Save Deadlines</button>
+          </div>
+        </div>
+        {mHols.length>0&&(
+          <div style={{padding:"10px 14px",background:"#fefce8",borderRadius:8,border:"1px solid #fde68a",fontSize:13,color:"#92400e"}}>
+            <strong>🎌 Holidays in {MONTHS[dlMi]}:</strong>{" "}{mHols.map((h,i)=><span key={i}>{ord(h.day)} {h.name}{i<mHols.length-1?", ":""}</span>)}
+            <span style={{color:"#b45309",marginLeft:8}}>(deadlines auto-skip these)</span>
+          </div>
+        )}
+      </div>
+      <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+        <div style={{display:"grid",gridTemplateColumns:"minmax(200px,1fr) 80px 120px 150px 130px 80px",padding:"10px 18px",background:"#f8fafc",borderBottom:"2px solid #e2e8f0",fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px"}}>
+          <div>Task</div><div style={{textAlign:"center"}}>Base Due</div><div style={{textAlign:"center"}}>Adjusted</div><div style={{textAlign:"center"}}>Effective Date</div><div style={{textAlign:"center"}}>Day of Week</div><div style={{textAlign:"center"}}>Reset</div>
+        </div>
+        {tasks.map(task=>{
+          const val=getVal(task.id);const eff=getEff(task,val);const base=task.deadlineDay;
+          const effDate=new Date(dlYear,dlMi,eff);const dow=DOWS[effDate.getDay()];
+          const wknd=effDate.getDay()===0||effDate.getDay()===6;const isHol=mHols.some(h=>h.day===eff);
+          const moved=eff!==(val!==""&&val!=null?parseInt(val):base);const hasAdj=val!=="";
+          const isDirty=local[task.id]!==undefined;const isDone=getSt(task.id).ownerStatus==="DONE";
+          return(
+            <div key={task.id} style={{display:"grid",gridTemplateColumns:"minmax(200px,1fr) 80px 120px 150px 130px 80px",padding:"10px 18px",borderBottom:"1px solid #f1f5f9",alignItems:"center",background:isDirty?"#fefce8":isDone?"#f0fdf4":"#fff"}}>
+              <div style={{paddingRight:12}}>
+                <div style={{fontSize:13,fontWeight:600,color:isDone?"#94a3b8":"#1e293b",textDecoration:isDone?"line-through":"none"}}>{task.name}</div>
+                <div style={{display:"flex",gap:6,marginTop:3,alignItems:"center"}}>
+                  <span style={{padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,color:"#fff",background:cc(task.category,cats)}}>{task.category}</span>
+                </div>
+              </div>
+              <div style={{textAlign:"center",fontSize:14,fontWeight:700,color:"#64748b"}}>{ord(base)}</div>
+              <div style={{textAlign:"center"}}>
+                <input type="number" min="1" max={dim} style={{width:70,padding:"5px 8px",borderRadius:6,border:`2px solid ${isDirty?"#f59e0b":"#e2e8f0"}`,fontSize:13,textAlign:"center",background:isDirty?"#fffbeb":"#f8fafc",fontWeight:600}} placeholder={String(base)} value={val} onChange={e=>setLocal(p=>({...p,[task.id]:e.target.value}))}/>
+                {isDirty&&<div style={{fontSize:10,color:"#f59e0b",marginTop:2}}>unsaved</div>}
+              </div>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:14,fontWeight:700,color:moved?"#7c3aed":hasAdj?"#0891b2":"#1e293b"}}>{ord(eff)}</div>
+                <div style={{fontSize:11,color:"#94a3b8"}}>{MONTHS[dlMi].slice(0,3)} {dlYear}</div>
+                {moved&&<div style={{fontSize:10,color:"#7c3aed",fontWeight:600,marginTop:1}}>↑ auto-skipped</div>}
+              </div>
+              <div style={{textAlign:"center"}}>
+                <span style={{display:"inline-block",padding:"4px 10px",borderRadius:20,fontSize:12,fontWeight:700,background:wknd||isHol?"#fee2e2":"#dcfce7",color:wknd||isHol?"#dc2626":"#166534"}}>{dow} {isHol?"🎌":wknd?"⛔":"✓"}</span>
+                {(wknd||isHol)&&<div style={{fontSize:10,color:"#dc2626",marginTop:2}}>→ moved to {ord(eff)}</div>}
+              </div>
+              <div style={{textAlign:"center"}}>
+                {hasAdj?<button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5",fontSize:11}} onClick={()=>resetTask(task.id)}>Reset</button>:<span style={{fontSize:11,color:"#cbd5e1"}}>—</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{fontSize:12,color:"#94a3b8",textAlign:"right"}}>💡 Deadlines fall in {MONTHS[dlMi]} {dlYear}. Leave "Adjusted" blank to use the base deadline.</div>
+    </div>
+  );
+}
+
+// ── STATUS MODAL ──────────────────────────────────────────────────────────────
+function StatusModal({task,getSt,patch,onClose,cats,dlYear,dlMi,holidays}){
+  const [local,setLocal]=useState({...getSt(task.id)});
+  const eff=calcEffDay(task.deadlineDay,local.adjustedDeadline,dlYear,dlMi,holidays);
+  const save=()=>{patch(task.id,local);onClose();};
+  return(
+    <Overlay onClose={onClose}>
+      <div style={S.modal}>
+        <div style={S.mHdr}>
+          <div style={{flex:1}}>
+            <span style={{fontSize:11,fontWeight:700,color:"#fff",padding:"2px 8px",borderRadius:4,textTransform:"uppercase",background:cc(task.category,cats)}}>{task.category}</span>
+            <div style={{fontSize:16,fontWeight:700,marginTop:8}}>{task.name}</div>
+            <div style={{fontSize:12,color:"#64748b",marginTop:3}}>
+              Base: <strong>{ord(task.deadlineDay)}</strong> · Effective: <strong style={{color:eff!==task.deadlineDay?"#7c3aed":"#374151"}}>{ord(eff)} {MONTHS[dlMi].slice(0,3)} {dlYear}</strong>
+              {eff!==task.deadlineDay&&<span style={{color:"#7c3aed"}}> (adjusted for weekends/holidays)</span>}
+            </div>
+          </div>
+          <button style={S.xBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={S.mBody}>
+          <FRow label="Owner Status"><StatusBtns value={local.ownerStatus||""} onChange={v=>setLocal(p=>({...p,ownerStatus:v}))}/></FRow>
+          <FRow label="Reviewer Status"><StatusBtns value={local.reviewerStatus||""} onChange={v=>setLocal(p=>({...p,reviewerStatus:v}))}/></FRow>
+          <FRow label="Completion Date"><input type="date" style={S.inp} value={local.completionDate||""} onChange={e=>setLocal(p=>({...p,completionDate:e.target.value}))}/></FRow>
+          <FRow label={<>Adjusted Deadline <span style={{color:"#7c3aed",fontWeight:400,textTransform:"none",fontSize:11}}>(this month only)</span></>}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <input type="number" min="1" max="31" style={{...S.inp,width:80}} placeholder={task.deadlineDay} value={local.adjustedDeadline??""} onChange={e=>setLocal(p=>({...p,adjustedDeadline:e.target.value?parseInt(e.target.value):null}))}/>
+              <span style={{fontSize:12,color:"#64748b"}}>weekends & holidays auto-skipped</span>
+              {local.adjustedDeadline!=null&&<button style={S.cancelBtn} onClick={()=>setLocal(p=>({...p,adjustedDeadline:null}))}>Clear</button>}
+            </div>
+          </FRow>
+          <FRow label="Notes"><textarea style={{...S.inp,minHeight:72,resize:"vertical"}} value={local.notes||""} onChange={e=>setLocal(p=>({...p,notes:e.target.value}))} placeholder="Notes, blockers, reason for delay..."/></FRow>
+        </div>
+        <div style={S.mFtr}>
+          <button style={S.cancelBtn} onClick={onClose}>Cancel</button>
+          <button style={S.saveBtn} onClick={save}>Save</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ── EDIT TASK MODAL ───────────────────────────────────────────────────────────
+function EditTaskModal({task,onClose,onSave,onDelete,team,cats,setCats}){
+  const isNew=!task;
+  const catNames=cats.map(c=>c.name);
+  const [form,setForm]=useState(task?{...task}:{name:"",owner:team[0]?.name||"",reviewer:team[0]?.name||"",startDay:1,deadlineDay:15,category:catNames[0]||""});
+  const [newCatMode,setNewCatMode]=useState(false);
+  const [newCatName,setNewCatName]=useState("");
+  const valid=form.name.trim()&&form.owner&&form.deadlineDay>=1&&form.deadlineDay<=31;
+  const handleSave=async()=>{
+    let cat=form.category;
+    if(newCatMode&&newCatName.trim()){cat=newCatName.trim();if(!cats.find(c=>c.name===cat))await setCats([...cats,{name:cat,color:"#374151"}]);}
+    onSave({...form,category:cat,name:form.name.trim()});
+  };
+  return(
+    <Overlay onClose={onClose}>
+      <div style={S.modal}>
+        <div style={S.mHdr}>
+          <div>
+            <div style={{fontSize:16,fontWeight:700}}>{isNew?"➕ Add New Task":"✏ Edit Task"}</div>
+            <div style={{fontSize:12,color:"#64748b",marginTop:3}}>Deadline day = day in the following month (e.g. 5 = 5th of next month)</div>
+          </div>
+          <button style={S.xBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={S.mBody}>
+          <FRow label="Task Name *"><input style={S.inp} value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="e.g. Bank Reconciliation" autoFocus={isNew}/></FRow>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <FRow label="Owner *">
+              <select style={S.inp} value={form.owner} onChange={e=>setForm(p=>({...p,owner:e.target.value}))}>
+                {team.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}
+              </select>
+            </FRow>
+            <FRow label="Reviewer">
+              <select style={S.inp} value={form.reviewer} onChange={e=>setForm(p=>({...p,reviewer:e.target.value}))}>
+                {team.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}
+              </select>
+            </FRow>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <FRow label="Start Day"><input type="number" min="1" max="31" style={S.inp} value={form.startDay} onChange={e=>setForm(p=>({...p,startDay:parseInt(e.target.value)||1}))}/></FRow>
+            <FRow label="Deadline Day (of following month) *"><input type="number" min="1" max="31" style={S.inp} value={form.deadlineDay} onChange={e=>setForm(p=>({...p,deadlineDay:parseInt(e.target.value)||15}))}/></FRow>
+          </div>
+          <FRow label="Category">
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              {!newCatMode?<select style={{...S.inp,flex:1}} value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}>{catNames.map(c=><option key={c} value={c}>{c}</option>)}</select>:<input style={{...S.inp,flex:1}} placeholder="New category name" value={newCatName} onChange={e=>setNewCatName(e.target.value)}/>}
+              <button style={S.cancelBtn} onClick={()=>{setNewCatMode(v=>!v);setNewCatName("");}}>{newCatMode?"Use existing":"+ New cat"}</button>
+            </div>
+          </FRow>
+        </div>
+        <div style={{...S.mFtr,justifyContent:"space-between"}}>
+          <div>{onDelete&&<button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5"}} onClick={onDelete}>🗑 Delete</button>}</div>
+          <div style={{display:"flex",gap:10}}>
+            <button style={S.cancelBtn} onClick={onClose}>Cancel</button>
+            <button style={{...S.saveBtn,...(!valid?{opacity:.5,cursor:"not-allowed"}:{})}} disabled={!valid} onClick={handleSave}>{isNew?"Add Task":"Save Changes"}</button>
+          </div>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ── SETTINGS VIEW ─────────────────────────────────────────────────────────────
+function SettingsView({team,setTeam,tasks,setTasks,cats,setCats,holidays,setHolidays,year,mi,dlYear,dlMi,setEditTask,deleteTask}){
+  const [tab,setTab]=useState("tasks");
+  const [filter,setFilter]=useState("");
+  const catNames=[...new Set([...cats.map(c=>c.name),...tasks.map(t=>t.category)])];
+  const visible=tasks.filter(t=>!filter.trim()||t.name.toLowerCase().includes(filter.toLowerCase()));
+  const moveTask=(id,dir)=>{const arr=[...tasks];const idx=arr.findIndex(t=>t.id===id);const to=idx+dir;if(to<0||to>=arr.length)return;[arr[idx],arr[to]]=[arr[to],arr[idx]];setTasks(arr);};
+  const [newMem,setNewMem]=useState("");
+  const [editMem,setEditMem]=useState(null);
+  const [editCat,setEditCat]=useState(null);
+  const [nCatN,setNCatN]=useState("");const [nCatC,setNCatC]=useState("#374151");
+  const tColors=["#2D6A4F","#1D4E89","#7B2D8B","#C0392B","#E67E22","#16A085","#0369a1","#be185d"];
+  const palette=["#1e40af","#7c3aed","#0891b2","#b45309","#15803d","#dc2626","#374151","#9333ea","#0f766e","#c2410c","#be185d","#0369a1","#065f46","#6d28d9"];
+
+  return(
+    <div style={{display:"flex",gap:20,alignItems:"flex-start",maxWidth:1100}}>
+      <div style={{width:180,flexShrink:0,background:"#fff",borderRadius:12,padding:"12px 8px",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px",padding:"4px 12px 10px"}}>Settings</div>
+        {[["tasks","📋 Tasks"],["categories","🏷 Categories"],["team","👥 Team"],["holidays","🎌 Holidays"]].map(([v,l])=>(
+          <button key={v} style={{display:"block",width:"100%",textAlign:"left",padding:"9px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:tab===v?700:400,background:tab===v?"#eff6ff":"transparent",color:tab===v?"#1d4ed8":"#374151",marginBottom:2}} onClick={()=>setTab(v)}>{l}</button>
+        ))}
+      </div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",gap:16}}>
+
+        {tab==="tasks"&&(
+          <SCard title="📋 Task Manager" sub={`${tasks.length} tasks — all changes sync live to Supabase.`}>
+            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+              <input style={{...S.inp,flex:1,minWidth:180,padding:"7px 12px"}} placeholder="Search tasks…" value={filter} onChange={e=>setFilter(e.target.value)}/>
+              <button style={{...S.addBtn,height:36}} onClick={()=>setEditTask(false)}>+ Add Task</button>
+              <button style={{padding:"6px 14px",borderRadius:6,border:"1px solid #fde68a",background:"#fef9c3",color:"#92400e",fontSize:13,fontWeight:600,cursor:"pointer",height:36}}
+                onClick={async()=>{if(!window.confirm("Replace ALL tasks with the 50 default MarineTeknik tasks?\n\nStatus history is preserved."))return;await setTasks(DEFAULT_TASKS);await setCats(DEFAULT_CATS);}}>↺ Load Default Tasks</button>
+            </div>
+            {visible.length===0&&<div style={{textAlign:"center",padding:"30px",color:"#94a3b8"}}>No tasks. Click "+ Add Task" or "↺ Load Default Tasks".</div>}
+            {visible.length>0&&(
+              <>
+                <div style={{display:"grid",gridTemplateColumns:"28px minmax(180px,1fr) 110px 110px 80px 90px 80px",padding:"8px 10px",background:"#f8fafc",borderRadius:8,marginBottom:4,fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px"}}>
+                  <div/><div>Task</div><div style={{textAlign:"center"}}>Category</div><div style={{textAlign:"center"}}>Owner</div><div style={{textAlign:"center"}}>Start</div><div style={{textAlign:"center"}}>Deadline</div><div style={{textAlign:"center"}}>Actions</div>
+                </div>
+                {visible.map(task=>{
+                  const gi=tasks.findIndex(t=>t.id===task.id);
+                  return(
+                    <div key={task.id} className="trow" style={{display:"grid",gridTemplateColumns:"28px minmax(180px,1fr) 110px 110px 80px 90px 80px",padding:"9px 10px",borderRadius:8,marginBottom:2,alignItems:"center",background:"#fff",border:"1px solid #f1f5f9"}}>
+                      <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                        <button style={{...S.iconBtn,padding:"1px 4px",fontSize:10}} onClick={()=>moveTask(task.id,-1)} disabled={gi===0}>▲</button>
+                        <button style={{...S.iconBtn,padding:"1px 4px",fontSize:10}} onClick={()=>moveTask(task.id,1)} disabled={gi===tasks.length-1}>▼</button>
+                      </div>
+                      <div style={{paddingLeft:6,paddingRight:10,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:"#1e293b",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{task.name}</div></div>
+                      <div style={{textAlign:"center"}}>
+                        <select style={{padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",maxWidth:105,cursor:"pointer"}} value={task.category} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,category:e.target.value}:x))}>
+                          {catNames.map(c=><option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div style={{textAlign:"center"}}>
+                        <select style={{padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:"#f8fafc",maxWidth:105,cursor:"pointer"}} value={task.owner} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,owner:e.target.value}:x))}>
+                          {team.map(m=><option key={m.name} value={m.name}>{m.name.split(" ")[0]}</option>)}
+                        </select>
+                      </div>
+                      <div style={{textAlign:"center"}}><input type="number" min="1" max="31" style={{width:52,padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,textAlign:"center",background:"#f8fafc"}} value={task.startDay} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,startDay:parseInt(e.target.value)||1}:x))}/></div>
+                      <div style={{textAlign:"center"}}><input type="number" min="1" max="31" style={{width:52,padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,textAlign:"center",background:"#f8fafc"}} value={task.deadlineDay} onChange={e=>setTasks(tasks.map(x=>x.id===task.id?{...x,deadlineDay:parseInt(e.target.value)||1}:x))}/></div>
+                      <div style={{display:"flex",gap:4,justifyContent:"center"}}>
+                        <button style={{...S.smBtn,color:"#7c3aed",borderColor:"#ddd6fe",padding:"3px 8px",fontSize:12}} onClick={()=>setEditTask(task)}>✏</button>
+                        <button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5",padding:"3px 8px",fontSize:12}} onClick={()=>deleteTask(task.id)}>✕</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </SCard>
+        )}
+
+        {tab==="categories"&&(
+          <SCard title="🏷 Categories" sub="Saved to Supabase instantly.">
+            {cats.map((cat,idx)=>{
+              const tc=tasks.filter(t=>t.category===cat.name).length;
+              const isEd=editCat?.idx===idx;
+              return(
+                <div key={idx} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#f8fafc",borderRadius:8,marginBottom:6,border:isEd?"2px solid #3b82f6":"2px solid transparent"}}>
+                  <div style={{width:28,height:28,borderRadius:6,background:isEd?editCat.color:cat.color,flexShrink:0,border:"2px solid rgba(0,0,0,.1)",cursor:"pointer"}} onClick={()=>!isEd&&setEditCat({idx,name:cat.name,color:cat.color})}/>
+                  {isEd?(
+                    <div style={{flex:1,display:"flex",flexDirection:"column",gap:8}}>
+                      <input style={{...S.inp,fontSize:14,padding:"6px 10px"}} value={editCat.name} onChange={e=>setEditCat(p=>({...p,name:e.target.value}))} autoFocus/>
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{palette.map(c=><div key={c} onClick={()=>setEditCat(p=>({...p,color:c}))} style={{width:22,height:22,borderRadius:4,background:c,cursor:"pointer",border:editCat.color===c?"3px solid #0f172a":"2px solid transparent",flexShrink:0}}/>)}</div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button style={S.saveBtn} onClick={()=>{const old=cats[editCat.idx].name,nw=editCat.name.trim();const nc=cats.map((c,i)=>i===editCat.idx?{name:nw,color:editCat.color}:c);setCats(nc);if(old!==nw)setTasks(tasks.map(t=>t.category===old?{...t,category:nw}:t));setEditCat(null);}}>Save</button>
+                        <button style={S.cancelBtn} onClick={()=>setEditCat(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ):(
+                    <>
+                      <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{cat.name}</div><div style={{fontSize:12,color:"#64748b"}}>{tc} task{tc!==1?"s":""}</div></div>
+                      <div style={{display:"flex",gap:4}}>
+                        <button style={S.smBtn} onClick={()=>setEditCat({idx,name:cat.name,color:cat.color})}>Edit</button>
+                        <button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5"}} onClick={()=>{if(tc>0){alert(`Can't delete — ${tc} tasks use this category.`);return;}if(window.confirm(`Delete "${cat.name}"?`))setCats(cats.filter((_,i)=>i!==idx));}}>Delete</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center",padding:"12px",background:"#f0f7ff",borderRadius:8,border:"1px dashed #93c5fd",flexWrap:"wrap"}}>
+              <div style={{width:28,height:28,borderRadius:6,background:nCatC,flexShrink:0,border:"2px solid rgba(0,0,0,.1)"}}/>
+              <input style={{...S.inp,flex:1,minWidth:120}} placeholder="New category name" value={nCatN} onChange={e=>setNCatN(e.target.value)}/>
+              <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{palette.slice(0,10).map(c=><div key={c} onClick={()=>setNCatC(c)} style={{width:20,height:20,borderRadius:4,background:c,cursor:"pointer",border:nCatC===c?"3px solid #0f172a":"2px solid transparent"}}/>)}</div>
+              <button style={S.addBtn} onClick={()=>{if(!nCatN.trim())return;setCats([...cats,{name:nCatN.trim(),color:nCatC}]);setNCatN("");}}>+ Add</button>
+            </div>
+          </SCard>
+        )}
+
+        {tab==="team"&&(
+          <SCard title="👥 Team Members" sub="Saved to Supabase instantly.">
+            {team.map((m,i)=>{
+              const tc=tasks.filter(t=>t.owner===m.name).length;
+              const isEd=editMem?.idx===i;
+              return(
+                <div key={i} style={{padding:"10px 12px",background:"#f8fafc",borderRadius:8,marginBottom:6,border:isEd?"2px solid #3b82f6":"2px solid transparent"}}>
+                  {isEd?(
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 100px",gap:10}}>
+                        <FRow label="Full Name"><input style={S.inp} value={editMem.name} onChange={e=>setEditMem(p=>({...p,name:e.target.value}))} autoFocus/></FRow>
+                        <FRow label="Initials"><input style={S.inp} value={editMem.initials} maxLength={3} onChange={e=>setEditMem(p=>({...p,initials:e.target.value.toUpperCase()}))}/></FRow>
+                      </div>
+                      <FRow label="Color"><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{tColors.map(c=><div key={c} onClick={()=>setEditMem(p=>({...p,color:c}))} style={{width:26,height:26,borderRadius:"50%",background:c,cursor:"pointer",border:editMem.color===c?"3px solid #0f172a":"2px solid transparent",flexShrink:0}}/>)}</div></FRow>
+                      <div style={{display:"flex",gap:8}}>
+                        <button style={S.saveBtn} onClick={()=>{setTeam(team.map((x,j)=>j===editMem.idx?{name:editMem.name.trim(),initials:editMem.initials.trim().slice(0,3),color:editMem.color}:x));setEditMem(null);}}>Save</button>
+                        <button style={S.cancelBtn} onClick={()=>setEditMem(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ):(
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:38,height:38,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:13,flexShrink:0}}>{m.initials}</div>
+                      <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{m.name}</div><div style={{fontSize:12,color:"#64748b"}}>{tc} task{tc!==1?"s":""} assigned</div></div>
+                      <div style={{display:"flex",gap:6}}>
+                        <button style={S.smBtn} onClick={()=>setEditMem({idx:i,...m})}>Edit</button>
+                        <button style={{...S.smBtn,color:"#dc2626",borderColor:"#fca5a5"}} onClick={()=>{if(tc>0&&!window.confirm(`${m.name} owns ${tc} tasks. Remove anyway?`))return;setTeam(team.filter((_,j)=>j!==i));}}>Remove</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <input style={{...S.inp,flex:1}} placeholder="Full name of new team member" value={newMem} onChange={e=>setNewMem(e.target.value)} onKeyDown={e=>{if(e.key!=="Enter"||!newMem.trim())return;const i2=newMem.trim().split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,3);setTeam([...team,{name:newMem.trim(),initials:i2,color:tColors[team.length%tColors.length]}]);setNewMem("");}}/>
+              <button style={S.addBtn} onClick={()=>{if(!newMem.trim())return;const i2=newMem.trim().split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,3);setTeam([...team,{name:newMem.trim(),initials:i2,color:tColors[team.length%tColors.length]}]);setNewMem("");}}>Add Member</button>
+            </div>
+          </SCard>
+        )}
+
+        {tab==="holidays"&&<HolidaysPanel year={year} mi={mi} dlYear={dlYear} dlMi={dlMi} holidays={holidays} setHolidays={setHolidays}/>}
+      </div>
+    </div>
+  );
+}
+
+// ── HOLIDAYS PANEL ────────────────────────────────────────────────────────────
+function HolidaysPanel({year,mi,dlYear,dlMi,holidays,setHolidays}){
+  const [editingMi,setEditingMi]=useState(null);
+  const [nd,setNd]=useState("");const [nn,setNn]=useState("");
+  const common={0:[{day:1,name:"New Year's Day"}],1:[{day:17,name:"Presidents Day"}],4:[{day:26,name:"Memorial Day"}],6:[{day:4,name:"Independence Day"}],8:[{day:1,name:"Labor Day"}],10:[{day:11,name:"Veterans Day"},{day:27,name:"Thanksgiving"}],11:[{day:25,name:"Christmas Day"}]};
+
+  const addHol=(mIdx)=>{
+    const d=parseInt(nd);if(!d||d<1||d>31||!nn.trim())return;
+    const key=`${mIdx===dlMi&&dlYear!==year?dlYear:year}-${mIdx}`;
+    const list=[...((holidays||{})[key]||[])];
+    if(list.some(h=>h.day===d))return;
+    setHolidays({...(holidays||{}),[key]:[...list,{day:d,name:nn.trim()}].sort((a,b)=>a.day-b.day)});
+    setNd("");setNn("");
+  };
+  const removeHol=(mIdx,idx)=>{
+    const key=`${mIdx===dlMi&&dlYear!==year?dlYear:year}-${mIdx}`;
+    const list=[...((holidays||{})[key]||[])];list.splice(idx,1);
+    setHolidays({...(holidays||{}),[key]:list});
+  };
+
+  return(
+    <SCard title="🎌 Holidays" sub={`Holidays in the deadline month cause tasks to auto-skip forward. Currently showing: closing ${MONTHS[mi]} ${year}, deadlines in ${MONTHS[dlMi]} ${dlYear}.`}>
+      <div style={{padding:"8px 12px",background:"#eff6ff",borderRadius:8,border:"1px solid #bfdbfe",fontSize:12,color:"#1e40af",marginBottom:14}}>
+        💡 Since you are closing <strong>{MONTHS[mi]} {year}</strong>, deadlines fall in <strong>{MONTHS[dlMi]} {dlYear}</strong>. Add holidays for <strong>{MONTHS[dlMi]}</strong> below so deadlines skip those days.
+      </div>
+      {MONTHS.map((m,i)=>{
+        const hYear=i===dlMi&&dlYear!==year?dlYear:year;
+        const key=`${hYear}-${i}`;
+        const hs=((holidays||{})[key])||[];
+        const isOpen=editingMi===i;
+        const isDlMonth=i===dlMi;
+        const sugg=(common[i]||[]).filter(s=>!hs.some(h=>h.name===s.name));
+        return(
+          <div key={i} style={{borderRadius:8,marginBottom:6,border:isOpen?"2px solid #3b82f6":isDlMonth?"1px solid #bfdbfe":"1px solid #e2e8f0",overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:isOpen?"#eff6ff":isDlMonth?"#f8faff":"#f8fafc",cursor:"pointer"}} onClick={()=>setEditingMi(isOpen?null:i)}>
+              <div style={{width:48,fontSize:13,fontWeight:700,color:isOpen?"#1d4ed8":isDlMonth?"#1e40af":"#374151"}}>{m.slice(0,3)}{isDlMonth&&<span style={{fontSize:10,marginLeft:4,color:"#3b82f6"}}>← deadlines</span>}</div>
+              <div style={{flex:1,display:"flex",gap:6,flexWrap:"wrap"}}>
+                {hs.length===0?<span style={{fontSize:12,color:"#cbd5e1"}}>No holidays</span>:hs.map((h,j)=>(
+                  <span key={j} style={{padding:"2px 8px",borderRadius:4,background:"#fef9c3",color:"#92400e",fontSize:11,fontWeight:700,border:"1px solid #fde047",display:"flex",alignItems:"center",gap:4}}>
+                    {ord(h.day)}: {h.name}
+                    {isOpen&&<span style={{cursor:"pointer",color:"#dc2626",fontWeight:900,marginLeft:2}} onClick={e=>{e.stopPropagation();removeHol(i,j);}}>×</span>}
+                  </span>
+                ))}
+              </div>
+              <span style={{fontSize:12,color:"#94a3b8"}}>{isOpen?"▲":"▼"}</span>
+            </div>
+            {isOpen&&(
+              <div style={{padding:"14px 16px",background:"#fff",borderTop:"1px solid #e2e8f0"}}>
+                {sugg.length>0&&(
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:11,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Quick Add</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {sugg.map((s,si)=>(
+                        <button key={si} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:12,cursor:"pointer",color:"#374151"}}
+                          onClick={()=>{const key2=`${hYear}-${i}`;const list=[...((holidays||{})[key2]||[])];setHolidays({...(holidays||{}),[key2]:[...list,s].sort((a,b)=>a.day-b.day)});}}>
+                          + {s.name} ({ord(s.day)})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    <label style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.5px"}}>Day</label>
+                    <input type="number" min="1" max="31" style={{width:64,padding:"7px 10px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,textAlign:"center"}} placeholder="15" value={nd} onChange={e=>setNd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addHol(i)}/>
+                  </div>
+                  <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
+                    <label style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.5px"}}>Holiday Name</label>
+                    <input style={{padding:"7px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:13,width:"100%"}} placeholder="e.g. Company Outing" value={nn} onChange={e=>setNn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addHol(i)}/>
+                  </div>
+                  <button style={{padding:"7px 16px",borderRadius:6,border:"none",background:"#3b82f6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",height:36}} onClick={()=>addHol(i)}>+ Add</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </SCard>
+  );
+}
+
+// ── HOLIDAY MODAL (top bar button) ────────────────────────────────────────────
+function HolidayModal({year,mi,holidays,setHolidays,onClose,closingMonth}){
+  const key=`${year}-${mi}`;
+  const [list,setList]=useState([...((holidays||{})[key]||[])]);
+  const [nd,setNd]=useState("");const [nn,setNn]=useState("");
+  const add=()=>{const d=parseInt(nd);if(!d||d<1||d>31||!nn.trim()||list.some(h=>h.day===d))return;setList(p=>[...p,{day:d,name:nn.trim()}].sort((a,b)=>a.day-b.day));setNd("");setNn("");};
+  const common={0:[{day:1,name:"New Year's Day"}],1:[{day:17,name:"Presidents Day"}],4:[{day:26,name:"Memorial Day"}],6:[{day:4,name:"Independence Day"}],8:[{day:1,name:"Labor Day"}],10:[{day:11,name:"Veterans Day"},{day:27,name:"Thanksgiving"}],11:[{day:25,name:"Christmas Day"}]};
+  const sugg=(common[mi]||[]).filter(s=>!list.some(h=>h.name===s.name));
+  return(
+    <Overlay onClose={onClose}>
+      <div style={{...S.modal,maxWidth:480}}>
+        <div style={S.mHdr}>
+          <div>
+            <div style={{fontSize:16,fontWeight:700}}>🎌 Holidays — {MONTHS[mi]} {year}</div>
+            <div style={{fontSize:12,color:"#64748b",marginTop:3}}>Deadlines for the {closingMonth} close fall in this month. Holidays here are auto-skipped.</div>
+          </div>
+          <button style={S.xBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={S.mBody}>
+          {list.length===0&&<div style={{color:"#94a3b8",fontSize:14,textAlign:"center",padding:"12px 0"}}>No holidays set.</div>}
+          {list.map((h,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,border:"1px solid #fde68a",marginBottom:6}}>
+              <span style={{fontWeight:700,fontSize:14,color:"#92400e",minWidth:28}}>{ord(h.day)}</span>
+              <span style={{flex:1,fontSize:14}}>{h.name}</span>
+              <button style={{padding:"4px 8px",borderRadius:6,border:"1px solid #fca5a5",background:"#fff",fontSize:12,cursor:"pointer",color:"#dc2626",fontWeight:600}} onClick={()=>setList(p=>p.filter((_,j)=>j!==i))}>✕</button>
+            </div>
+          ))}
+          {sugg.length>0&&(
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Quick Add</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{sugg.map((s,i)=><button key={i} style={S.cancelBtn} onClick={()=>setList(p=>[...p,s].sort((a,b)=>a.day-b.day))}>+ {s.name} ({ord(s.day)})</button>)}</div>
+            </div>
+          )}
+          <div style={{display:"flex",gap:8,alignItems:"flex-end",marginTop:8}}>
+            <FRow label="Day"><input type="number" min="1" max="31" style={{...S.inp,width:64}} placeholder="15" value={nd} onChange={e=>setNd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/></FRow>
+            <div style={{flex:1}}><FRow label="Name"><input style={S.inp} placeholder="e.g. Company Outing" value={nn} onChange={e=>setNn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/></FRow></div>
+            <button style={{...S.addBtn,height:38}} onClick={add}>+ Add</button>
+          </div>
+        </div>
+        <div style={S.mFtr}>
+          <button style={S.cancelBtn} onClick={onClose}>Cancel</button>
+          <button style={S.saveBtn} onClick={()=>{setHolidays({...(holidays||{}),[key]:list});onClose();}}>Save</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ── YEAR PICKER ───────────────────────────────────────────────────────────────
+function YearPickModal({year,mi,onSelect,onClose}){
+  const [sy,setSy]=useState(year);const [sm,setSm]=useState(mi);
+  const ys=[];for(let y=2024;y<=2035;y++)ys.push(y);
+  return(
+    <Overlay onClose={onClose}>
+      <div style={{...S.modal,maxWidth:380}}>
+        <div style={S.mHdr}><div style={{fontSize:16,fontWeight:700}}>Jump to Closing Month</div><button style={S.xBtn} onClick={onClose}>✕</button></div>
+        <div style={S.mBody}>
+          <FRow label="Year"><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{ys.map(y=><button key={y} style={{padding:"6px 12px",borderRadius:6,border:"1px solid #e2e8f0",background:sy===y?"#3b82f6":"#f8fafc",color:sy===y?"#fff":"#374151",cursor:"pointer",fontWeight:sy===y?700:400}} onClick={()=>setSy(y)}>{y}</button>)}</div></FRow>
+          <FRow label="Closing Month"><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>{MONTHS.map((m,i)=><button key={i} style={{padding:"6px 4px",borderRadius:6,border:"1px solid #e2e8f0",background:sm===i?"#3b82f6":"#f8fafc",color:sm===i?"#fff":"#374151",cursor:"pointer",fontSize:12,fontWeight:sm===i?700:400}} onClick={()=>setSm(i)}>{m.slice(0,3)}</button>)}</div></FRow>
+        </div>
+        <div style={S.mFtr}>
+          <button style={S.cancelBtn} onClick={onClose}>Cancel</button>
+          <button style={S.saveBtn} onClick={()=>onSelect(sy,sm)}>Go to {MONTHS[sm].slice(0,3)} {sy}</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ── SHARED ────────────────────────────────────────────────────────────────────
+function SCard({title,sub,children}){return(<div style={{background:"#fff",borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}><div style={{fontSize:15,fontWeight:700,marginBottom:sub?4:14}}>{title}</div>{sub&&<div style={{fontSize:13,color:"#64748b",marginBottom:14}}>{sub}</div>}{children}</div>);}
+function FRow({label,children}){return(<div style={{display:"flex",flexDirection:"column",gap:6}}><label style={{fontSize:11,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}</label>{children}</div>);}
+function StatusBtns({value,onChange}){const opts=[["DONE","✓ Done","#dcfce7","#166534"],["PENDING","⏳ Pending","#fef9c3","#854d0e"],["N/A","N/A","#f1f5f9","#64748b"],["","—","#f8fafc","#374151"]];return(<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{opts.map(([v,l,bg,col])=><button key={v} style={{padding:"6px 16px",borderRadius:6,border:`1px solid ${value===v?"#3b82f6":"#e2e8f0"}`,background:value===v?"#3b82f6":bg,color:value===v?"#fff":col,cursor:"pointer",fontSize:13,fontWeight:500}} onClick={()=>onChange(v)}>{l}</button>)}</div>);}
+function Overlay({children,onClose}){return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={onClose}><div onClick={e=>e.stopPropagation()}>{children}</div></div>);}
+
+const S={
+  hdr:      {background:"#0f172a",color:"#f8fafc",display:"flex",alignItems:"center",padding:"0 20px",height:60,gap:16,position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,.3)",flexWrap:"wrap"},
+  navBtn:   {padding:"5px 14px",borderRadius:6,border:"none",background:"transparent",color:"#94a3b8",cursor:"pointer",fontSize:13,fontWeight:500},
+  navOn:    {background:"#3b82f6",color:"#fff"},
+  arrBtn:   {background:"#1e293b",border:"none",color:"#94a3b8",width:30,height:30,borderRadius:6,cursor:"pointer",fontSize:18,lineHeight:"1",display:"flex",alignItems:"center",justifyContent:"center"},
+  monBtn:   {fontWeight:700,fontSize:14,minWidth:130,textAlign:"center",background:"#1e293b",border:"none",color:"#f8fafc",cursor:"pointer",padding:"5px 10px",borderRadius:6,display:"block"},
+  holPill:  {padding:"4px 12px",borderRadius:20,background:"#fef9c3",color:"#92400e",border:"1px solid #fde68a",fontSize:12,fontWeight:600,cursor:"pointer"},
+  expBtn:   {padding:"5px 12px",borderRadius:6,border:"1px solid #334155",background:"transparent",color:"#94a3b8",fontSize:12,cursor:"pointer"},
+  statsBar: {background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"10px 20px",display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"},
+  sel:      {padding:"6px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:13,color:"#1e293b",cursor:"pointer"},
+  addBtn:   {padding:"6px 14px",borderRadius:6,border:"none",background:"#3b82f6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"},
+  holBtn:   {padding:"6px 14px",borderRadius:6,border:"1px solid #fde68a",background:"#fef9c3",color:"#92400e",fontSize:13,fontWeight:600,cursor:"pointer"},
+  smBtn:    {padding:"4px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",fontSize:12,cursor:"pointer",color:"#3b82f6",fontWeight:600},
+  iconBtn:  {padding:"3px 6px",borderRadius:5,border:"1px solid #e2e8f0",background:"#fff",fontSize:11,cursor:"pointer",color:"#64748b"},
+  saveBtn:  {padding:"7px 18px",borderRadius:8,border:"none",background:"#3b82f6",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:600},
+  cancelBtn:{padding:"7px 18px",borderRadius:8,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:14,color:"#64748b"},
+  inp:      {padding:"8px 12px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:14,color:"#0f172a",width:"100%"},
+  modal:    {background:"#fff",borderRadius:16,width:"min(580px,95vw)",boxShadow:"0 24px 60px rgba(0,0,0,.25)",overflow:"hidden",maxHeight:"92vh",overflowY:"auto"},
+  mHdr:     {padding:"20px 22px 14px",borderBottom:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"sticky",top:0,background:"#fff",zIndex:10},
+  mBody:    {padding:"18px 22px",display:"flex",flexDirection:"column",gap:14},
+  mFtr:     {padding:"14px 22px",borderTop:"1px solid #f1f5f9",display:"flex",justifyContent:"flex-end",gap:10,position:"sticky",bottom:0,background:"#fff"},
+  xBtn:     {background:"#f1f5f9",border:"none",width:30,height:30,borderRadius:6,cursor:"pointer",fontSize:15,color:"#64748b",flexShrink:0},
+  dTitle:   {fontSize:13,fontWeight:700,color:"#374151",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:14},
+};
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
