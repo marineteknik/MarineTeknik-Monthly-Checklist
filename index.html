@@ -366,7 +366,7 @@ function App(){
     const dbP={};
     if('ownerStatus'     in p) dbP.owner_status      =p.ownerStatus;
     if('reviewerStatus'  in p) dbP.reviewer_status   =p.reviewerStatus;
-    if('completionDate'  in p) dbP.completion_date   =p.completionDate;
+    if('completionDate'  in p) dbP.completion_date   =p.completionDate||null;
     if('adjustedDeadline'in p) dbP.adjusted_deadline =p.adjustedDeadline;
     if('notes'           in p) dbP.notes             =p.notes;
     await sbPatchStatus(year,mi,tid,dbP);
@@ -620,7 +620,7 @@ function ChecklistView({tasks,getSt,patch,effD,team,cats,dlYear,dlMi,isCur,today
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
                     <span style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.5px"}}>Completion Date</span>
-                    <input type="date" style={{padding:"3px 7px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:st.completionDate?"#f0fdf4":"#f8fafc",color:st.completionDate?"#166534":"#94a3b8",cursor:"pointer"}} value={st.completionDate||""} onChange={e=>patch(task.id,{completionDate:e.target.value})}/>
+                    <input type="date" style={{padding:"3px 7px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:st.completionDate?"#f0fdf4":"#f8fafc",color:st.completionDate?"#166534":"#94a3b8",cursor:"pointer"}} value={st.completionDate||""} onChange={e=>{const val=e.target.value;if(!val){patch(task.id,{completionDate:"",ownerStatus:"",reviewerStatus:""});}else{patch(task.id,{completionDate:val});}}} />
                   </div>
                   <div style={{display:"flex",gap:8,flexShrink:0}}>
                     <MiniDrop label="Owner"    value={st.ownerStatus}    onChange={v=>{const p={ownerStatus:v};if(v!=="DONE"&&v!=="N/A")p.completionDate="";patch(task.id,p);}}/>
