@@ -465,6 +465,12 @@ function App(){
           title="Sign out">
           ⎋ Sign Out
         </button>
+        <button
+          onClick={()=>window.location.reload()}
+          style={{padding:"5px 14px",borderRadius:6,border:"1px solid rgba(255,255,255,0.2)",background:"transparent",color:"rgba(255,255,255,0.6)",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}
+          title="Refresh data">
+          ↺ Refresh
+        </button>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
           {mHols.length>0&&<button style={S.holPill} onClick={()=>setHolOpen(true)}>🎌 {mHols.length} holiday{mHols.length>1?"s":""}</button>}
           <div style={{display:"flex",alignItems:"center",gap:5}}>
@@ -594,7 +600,7 @@ function ChecklistView({tasks,getSt,patch,effD,team,cats,dlYear,dlMi,isCur,today
                 <React.Fragment key={task.id}>
                 <div className="trow" style={{display:"flex",alignItems:"center",padding:"10px 18px",borderBottom:"1px solid #f1f5f9",gap:12,background:rowBg}}>
                   <div style={{width:22,height:22,borderRadius:6,border:isDone?"none":"2px solid #cbd5e1",background:isDone?(wasLate?"#f97316":"#10b981"):"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}
-                    onClick={()=>{if(isDone)patch(task.id,{ownerStatus:"",reviewerStatus:""});else patch(task.id,{ownerStatus:"DONE",reviewerStatus:"DONE",completionDate:localDateStr()});}}> 
+                    onClick={()=>{if(isDone)patch(task.id,{ownerStatus:"",reviewerStatus:"",completionDate:""});else patch(task.id,{ownerStatus:"DONE",reviewerStatus:"DONE",completionDate:localDateStr()});}}> 
                     {isDone&&(wasLate?"!":"✓")}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
@@ -617,7 +623,7 @@ function ChecklistView({tasks,getSt,patch,effD,team,cats,dlYear,dlMi,isCur,today
                     <input type="date" style={{padding:"3px 7px",borderRadius:5,border:"1px solid #e2e8f0",fontSize:12,background:st.completionDate?"#f0fdf4":"#f8fafc",color:st.completionDate?"#166534":"#94a3b8",cursor:"pointer"}} value={st.completionDate||""} onChange={e=>patch(task.id,{completionDate:e.target.value})}/>
                   </div>
                   <div style={{display:"flex",gap:8,flexShrink:0}}>
-                    <MiniDrop label="Owner"    value={st.ownerStatus}    onChange={v=>patch(task.id,{ownerStatus:v})}/>
+                    <MiniDrop label="Owner"    value={st.ownerStatus}    onChange={v=>{const p={ownerStatus:v};if(v!=="DONE"&&v!=="N/A")p.completionDate="";patch(task.id,p);}}/>
                     <MiniDrop label="Reviewer" value={st.reviewerStatus} onChange={v=>patch(task.id,{reviewerStatus:v})}/>
                   </div>
                   <div style={{display:"flex",gap:5,flexShrink:0}}>
